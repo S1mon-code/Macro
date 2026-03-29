@@ -24,32 +24,50 @@ def _chart_html(fig) -> str:
     return pio.to_html(fig, full_html=False, include_plotlyjs=False)
 
 
-def _build_summary(data: dict, keys: list[tuple[str, str]], labels: dict) -> list[dict]:
+def _build_summary(
+    data: dict,
+    keys: list[tuple[str, str]],
+    labels: dict,
+    rate_keys: set | None = None,
+) -> list[dict]:
     """构建摘要表格数据
-    keys: [(data_key, y_col_for_display), ...]
+    keys: [(data_key, display_type), ...]
+       display_type: "yoy_pct" 用同比, "value" 直接显示值
+    rate_keys: 比率类指标 key 集合（同比用差值 pp 而非 %）
     """
+    if rate_keys is None:
+        rate_keys = set()
     summary = []
-    for key, _ in keys:
+    for key, display_type in keys:
         df = data.get(key)
         if df is None or df.empty:
             continue
+        # 决定展示哪一列作为同比
         yoy_col = "yoy_pct"
         if yoy_col not in df.columns:
             continue
         df_valid = df.dropna(subset=[yoy_col])
         if df_valid.empty:
-            continue
+            # 尝试不过滤
+            df_valid = df
         latest = df_valid.iloc[-1]
         date = latest.get("date")
         if date is not None:
             period = date.strftime("%Y年%m月") if hasattr(date, "strftime") else str(date)
         else:
             period = "N/A"
+
+        value = float(latest.get("value", 0)) if latest.get("value") is not None else 0
+        yoy = float(latest[yoy_col]) if latest.get(yoy_col) is not None else 0
+        is_rate = key in rate_keys
+
         summary.append({
             "label": labels.get(key, key),
-            "value": float(latest.get("value", 0)) if latest.get("value") is not None else 0,
-            "yoy": float(latest[yoy_col]) if latest[yoy_col] is not None else 0,
+            "value": value,
+            "yoy": yoy,
             "period": period,
+            "is_rate": is_rate,  # 比率类标记
+            "unit": "pp" if is_rate else "%",
         })
     return summary
 
@@ -360,6 +378,8 @@ def generate_macro_report(use_cache: bool = False):
 
     # ── 6. 构建摘要表格 ──
     print("\n[5/6] 构建摘要数据...")
+    us_rate_keys = {"unemployment", "fed_funds_rate", "treasury_10y", "treasury_2y",
+                     "yield_spread", "labor_participation", "consumer_sentiment"}
     us_keys = [
         ("all_items", "yoy_pct"), ("core", "yoy_pct"),
         ("pce", "yoy_pct"), ("core_pce", "yoy_pct"),
@@ -372,7 +392,7 @@ def generate_macro_report(use_cache: bool = False):
         ("consumer_sentiment", "value"), ("retail_sales", "yoy_pct"),
         ("industrial_production", "yoy_pct"), ("housing_starts", "value"),
     ]
-    us_summary = _build_summary({**cpi_data, **fred_data}, us_keys, all_labels)
+    us_summary = _build_summary({**cpi_data, **fred_data}, us_keys, all_labels, us_rate_keys)
 
     cn_keys = [
         ("cpi", "yoy_pct"), ("ppi", "yoy_pct"),
@@ -380,7 +400,8 @@ def generate_macro_report(use_cache: bool = False):
         ("exports", "yoy_pct"), ("industrial", "yoy_pct"),
         ("retail", "yoy_pct"),
     ]
-    china_summary = _build_summary(china_data, cn_keys, china_labels)
+    cn_rate_keys = {"pmi_manufacturing"}
+    china_summary = _build_summary(china_data, cn_keys, china_labels, cn_rate_keys)
 
     # ── 7. 渲染 HTML ──
     print("\n[6/6] 生成报告文件...")

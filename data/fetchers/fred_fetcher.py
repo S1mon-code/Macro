@@ -25,6 +25,7 @@ class FREDFetcher:
         self.daily_series = fred_config.get("daily_series", [])
         self.weekly_series = fred_config.get("weekly_series", [])
         self.quarterly_series = fred_config.get("quarterly_series", [])
+        self.rate_series = fred_config.get("rate_series", [])
 
     def fetch_series(
         self, series_id: str, start_date: str | None = None
@@ -89,7 +90,8 @@ class FREDFetcher:
 
                 # 计算同比/环比
                 is_quarterly = name in self.quarterly_series
-                df = self._compute_changes(df, quarterly=is_quarterly)
+                is_rate = name in self.rate_series
+                df = self._compute_changes(df, quarterly=is_quarterly, rate=is_rate)
 
                 # 转为 list 以兼容 Plotly
                 for col in df.columns:
@@ -120,18 +122,26 @@ class FREDFetcher:
 
     @staticmethod
     def _compute_changes(
-        df: pd.DataFrame, quarterly: bool = False
+        df: pd.DataFrame, quarterly: bool = False, rate: bool = False
     ) -> pd.DataFrame:
-        """计算同比 (yoy_pct) 和环比 (mom_pct) 百分比变化"""
+        """计算同比 (yoy_pct) 和环比 (mom_pct)
+
+        rate=True: 比率类指标（失业率、利率等），用差值而非变化率
+        rate=False: 水平类指标（GDP、零售额等），用百分比变化率
+        """
         df = df.copy()
         df = df.sort_values("date").reset_index(drop=True)
 
-        # 环比: 相对上期变化百分比
-        df["mom_pct"] = df["value"].pct_change(1) * 100
-
-        # 同比: 季度数据用 pct_change(4)，月度数据用 pct_change(12)
         yoy_periods = 4 if quarterly else 12
-        df["yoy_pct"] = df["value"].pct_change(yoy_periods) * 100
+
+        if rate:
+            # 比率类：同比/环比用差值（如失业率从4.0到4.4 → +0.4）
+            df["mom_pct"] = df["value"].diff(1)
+            df["yoy_pct"] = df["value"].diff(yoy_periods)
+        else:
+            # 水平类：同比/环比用百分比变化率
+            df["mom_pct"] = df["value"].pct_change(1) * 100
+            df["yoy_pct"] = df["value"].pct_change(yoy_periods) * 100
 
         return df
 

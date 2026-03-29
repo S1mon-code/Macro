@@ -314,7 +314,7 @@
                                 <tr>
                                     <th>指标</th>
                                     <th>最新值</th>
-                                    <th>同比 (%)</th>
+                                    <th>同比变化</th>
                                     <th>月份</th>
                                 </tr>
                             </thead>
@@ -322,9 +322,13 @@
                                 {% for item in us_summary %}
                                 <tr>
                                     <td>{{ item.label }}</td>
-                                    <td>{{ "%.3f"|format(item.value) if item.value < 100 else "%.1f"|format(item.value) }}</td>
+                                    <td>{{ "%.3f"|format(item.value) if item.value < 1000 else "%.1f"|format(item.value) }}</td>
                                     <td class="{{ 'positive' if item.yoy > 0 else 'negative' }}">
-                                        {{ "%.3f"|format(item.yoy) }}%
+                                        {% if item.is_rate %}
+                                            {{ "%+.2f"|format(item.yoy) }} pp
+                                        {% else %}
+                                            {{ "%.2f"|format(item.yoy) }}%
+                                        {% endif %}
                                     </td>
                                     <td>{{ item.period }}</td>
                                 </tr>
@@ -341,7 +345,7 @@
                                 <tr>
                                     <th>指标</th>
                                     <th>最新值</th>
-                                    <th>同比 (%)</th>
+                                    <th>同比变化</th>
                                     <th>月份</th>
                                 </tr>
                             </thead>
@@ -349,9 +353,13 @@
                                 {% for item in china_summary %}
                                 <tr>
                                     <td>{{ item.label }}</td>
-                                    <td>{{ "%.3f"|format(item.value) if item.value < 100 else "%.1f"|format(item.value) }}</td>
+                                    <td>{{ "%.3f"|format(item.value) if item.value < 1000 else "%.1f"|format(item.value) }}</td>
                                     <td class="{{ 'positive' if item.yoy > 0 else 'negative' }}">
-                                        {{ "%.3f"|format(item.yoy) }}%
+                                        {% if item.is_rate %}
+                                            {{ "%+.2f"|format(item.yoy) }} pp
+                                        {% else %}
+                                            {{ "%.2f"|format(item.yoy) }}%
+                                        {% endif %}
                                     </td>
                                     <td>{{ item.period }}</td>
                                 </tr>

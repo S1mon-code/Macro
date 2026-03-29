@@ -90,6 +90,15 @@ fred:
   # 季度数据
   quarterly_series:
     - gdp
+  # 比率类指标（值本身就是%或指数，同比用差值而非变化率）
+  rate_series:
+    - unemployment
+    - fed_funds_rate
+    - treasury_10y
+    - treasury_2y
+    - yield_spread
+    - labor_participation
+    - consumer_sentiment
 
 china:
   start_year: 2016
