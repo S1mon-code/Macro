@@ -27,6 +27,7 @@ from analysis.context import HistoricalContext
 from analysis.regime import MacroRegime
 from analysis.scorecard import AssetScorecard
 from analysis.cpi_forecast import CPIForecaster
+from analysis.macro_forecast import MacroForecastMatrix
 
 
 def _chart_html(fig) -> str:
@@ -273,6 +274,34 @@ def generate_macro_report(use_cache: bool = False):
         print(f"  CPI 预测: {cpi_forecast.get('error')}")
     for key, val in asset_scores.items():
         print(f"    {val['name']}: {val['score']:+.3f} ({val['signal']})")
+
+    # 宏观预测矩阵（前瞻）
+    macro_matrix = MacroForecastMatrix()
+    macro_forecasts = macro_matrix.forecast_all(combined_us_data, china_data, cpi_forecast)
+    fwd_us = macro_forecasts.get("forward_regime_us", {})
+    fwd_cn = macro_forecasts.get("forward_regime_china", {})
+    print(f"  前瞻象限 — 美国: {fwd_us.get('quadrant_cn', 'N/A')}, 中国: {fwd_cn.get('quadrant_cn', 'N/A')}")
+    print(f"  预测叙事: {macro_forecasts.get('narrative', '')[:80]}...")
+
+    # 用前瞻数据重新打分资产
+    forward_us_data = macro_forecasts.get("_forward_us_data", combined_us_data)
+    forward_cn_data = macro_forecasts.get("_forward_cn_data", china_data)
+    forward_scorecard = AssetScorecard()
+    forward_asset_scores = forward_scorecard.score_all(
+        us_data=forward_us_data,
+        china_data=forward_cn_data,
+        regime_us=fwd_us,
+        regime_china=fwd_cn,
+        recession_data=recession_composite,
+        credit_pulse=credit_pulse,
+        labor_data=labor_analysis,
+    )
+    print(f"  前瞻资产评分:")
+    for key, val in forward_asset_scores.items():
+        cur = asset_scores.get(key, {}).get("score", 0)
+        fwd = val["score"]
+        arrow = "↑" if fwd > cur + 0.05 else ("↓" if fwd < cur - 0.05 else "→")
+        print(f"    {val['name']}: {cur:+.3f} → {fwd:+.3f} {arrow} ({val['signal']})")
 
     # ── 5. 构建所有标签映射 ──
     all_labels = {}
@@ -708,6 +737,8 @@ def generate_macro_report(use_cache: bool = False):
         regime_china=regime_china,
         asset_scores=asset_scores,
         cpi_forecast=cpi_forecast,
+        macro_forecasts=macro_forecasts,
+        forward_asset_scores=forward_asset_scores,
     )
 
     html_path = output_dir / "macro_report.html"

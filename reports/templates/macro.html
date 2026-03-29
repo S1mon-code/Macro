@@ -687,6 +687,9 @@
         {% if regime_us %}
         <a href="#macro-regime" class="sub-link">宏观象限</a>
         {% endif %}
+        {% if macro_forecasts %}
+        <a href="#macro-forecast-matrix" class="section-link">宏观预测矩阵</a>
+        {% endif %}
         {% if cpi_forecast and cpi_forecast.forecast_month is defined %}
         <a href="#cpi-forecast" class="sub-link">CPI 预测</a>
         {% endif %}
@@ -890,6 +893,111 @@
                     </div>
                     {% endfor %}
                 </div>
+            </div>
+            {% endif %}
+
+            <!-- Macro Forecast Matrix -->
+            {% if macro_forecasts and macro_forecasts.us_forecasts is defined %}
+            <div id="macro-forecast-matrix" class="section">
+                <h2>宏观预测矩阵 — {{ macro_forecasts.forecast_date }}</h2>
+
+                {% if macro_forecasts.narrative %}
+                <div style="background:#111;border:1px solid #1a1a2e;border-radius:8px;padding:16px;margin-bottom:20px;font-size:14px;color:#ccc;line-height:1.7">
+                    {{ macro_forecasts.narrative }}
+                </div>
+                {% endif %}
+
+                <!-- Forward Regime -->
+                {% if macro_forecasts.forward_regime_us %}
+                <h3>前瞻宏观象限（基于预测值）</h3>
+                <div class="regime-container" style="margin-bottom:24px">
+                    <div class="regime-box">
+                        <div class="regime-label">美国（前瞻）</div>
+                        <div class="regime-name {{ macro_forecasts.forward_regime_us.color }}">{{ macro_forecasts.forward_regime_us.quadrant_cn }}</div>
+                        <div class="regime-scores">
+                            <div class="rs-item"><div class="rs-value">{{ "%.2f"|format(macro_forecasts.forward_regime_us.growth_score) }}</div><div class="rs-label">增长</div></div>
+                            <div class="rs-item"><div class="rs-value">{{ "%.2f"|format(macro_forecasts.forward_regime_us.inflation_score) }}</div><div class="rs-label">通胀</div></div>
+                        </div>
+                    </div>
+                    {% if macro_forecasts.forward_regime_china %}
+                    <div class="regime-box">
+                        <div class="regime-label">中国（前瞻）</div>
+                        <div class="regime-name {{ macro_forecasts.forward_regime_china.color }}">{{ macro_forecasts.forward_regime_china.quadrant_cn }}</div>
+                        <div class="regime-scores">
+                            <div class="rs-item"><div class="rs-value">{{ "%.2f"|format(macro_forecasts.forward_regime_china.growth_score) }}</div><div class="rs-label">增长</div></div>
+                            <div class="rs-item"><div class="rs-value">{{ "%.2f"|format(macro_forecasts.forward_regime_china.inflation_score) }}</div><div class="rs-label">通胀</div></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- US Forecasts Table -->
+                <h3>美国宏观指标预测</h3>
+                <table class="cpi-component-table">
+                    <thead><tr><th>指标</th><th>当前值</th><th>预测值</th><th>方向</th><th>置信度</th><th>核心驱动</th></tr></thead>
+                    <tbody>
+                        {% for f in macro_forecasts.us_forecasts %}
+                        <tr>
+                            <td>{{ f.indicator }}</td>
+                            <td>{{ f.current if f.current is not none else '—' }}</td>
+                            <td style="font-weight:600;color:{{ '#16c79a' if f.direction in ['下降','降息','改善'] else ('#e94560' if f.direction in ['上升','加息','恶化','收缩'] else '#f5a623') }}">{{ f.forecast if f.forecast is not none else '—' }}</td>
+                            <td>{{ f.direction }}</td>
+                            <td>{{ f.confidence }}</td>
+                            <td style="font-size:11px;color:#888">{{ f.driver }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <!-- China Forecasts Table -->
+                {% if macro_forecasts.china_forecasts %}
+                <h3>中国宏观指标预测</h3>
+                <table class="cpi-component-table">
+                    <thead><tr><th>指标</th><th>当前值</th><th>预测值</th><th>方向</th><th>置信度</th><th>核心驱动</th></tr></thead>
+                    <tbody>
+                        {% for f in macro_forecasts.china_forecasts %}
+                        <tr>
+                            <td>{{ f.indicator }}</td>
+                            <td>{{ f.current if f.current is not none else '—' }}</td>
+                            <td style="font-weight:600;color:{{ '#16c79a' if f.direction in ['下降','改善'] else ('#e94560' if f.direction in ['上升','恶化'] else '#f5a623') }}">{{ f.forecast if f.forecast is not none else '—' }}</td>
+                            <td>{{ f.direction }}</td>
+                            <td>{{ f.confidence }}</td>
+                            <td style="font-size:11px;color:#888">{{ f.driver }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+
+                <!-- Forward Asset Scores -->
+                {% if forward_asset_scores %}
+                <h3>前瞻资产评分（基于预测数据）</h3>
+                <div class="forecast-grid">
+                    {% for key, asset in forward_asset_scores.items() %}
+                    <div class="forecast-card" onclick="showFactors('{{ key }}')">
+                        <div class="fc-header">
+                            <span class="fc-name">{{ asset.name }}</span>
+                            <span class="fc-score {{ 'bullish' if asset.score > 0.2 else ('bearish' if asset.score < -0.2 else 'neutral') }}">
+                                {{ "%+.2f"|format(asset.score) }}
+                            </span>
+                        </div>
+                        <div class="fc-signal" style="color:{{ '#16c79a' if asset.color == 'green' else ('#e94560' if asset.color == 'red' else '#f5a623') }}">
+                            {{ asset.signal }}（前瞻）
+                        </div>
+                        <div class="fc-bar">
+                            <div class="fc-bar-center"></div>
+                            {% set bar_pct = ((asset.score + 1) / 2 * 100) %}
+                            {% if asset.score >= 0 %}
+                            <div class="fc-bar-fill" style="left:50%;width:{{ (bar_pct - 50)|abs }}%;background:#16c79a;"></div>
+                            {% else %}
+                            <div class="fc-bar-fill" style="left:{{ bar_pct }}%;width:{{ (50 - bar_pct)|abs }}%;background:#e94560;"></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
             {% endif %}
 
