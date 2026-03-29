@@ -18,6 +18,13 @@ from data.cache.db import CacheDB
 from charts.cpi_charts import CPIChartBuilder
 from charts.macro_charts import MacroChartBuilder
 
+from analysis.cycle import CycleAssessor
+from analysis.recession import RecessionTracker
+from analysis.inflation import InflationAnalyzer
+from analysis.labor import LaborDashboard
+from analysis.china_credit import ChinaCreditPulse
+from analysis.context import HistoricalContext
+
 
 def _chart_html(fig) -> str:
     """将 Plotly Figure 转为嵌入 HTML 片段"""
@@ -101,7 +108,7 @@ def generate_macro_report(use_cache: bool = False):
     cache = CacheDB()
 
     # ── 1. 拉取美国 CPI 数据 (BLS) ──
-    print("\n[1/6] 拉取美国 CPI 数据 (BLS)...")
+    print("\n[1/8] 拉取美国 CPI 数据 (BLS)...")
     bls = BLSFetcher()
     if use_cache:
         cpi_data = {}
@@ -124,7 +131,7 @@ def generate_macro_report(use_cache: bool = False):
     print(f"  已获取 {len(cpi_data)} 个 CPI 分项")
 
     # ── 2. 拉取美国宏观数据 (FRED) ──
-    print("\n[2/6] 拉取美国宏观数据 (FRED)...")
+    print("\n[2/8] 拉取美国宏观数据 (FRED)...")
     fred = FREDFetcher()
     if use_cache:
         fred_data = {}
@@ -147,7 +154,7 @@ def generate_macro_report(use_cache: bool = False):
     print(f"  已获取 {len(fred_data)} 个 FRED 指标")
 
     # ── 3. 拉取中国宏观数据 (AKShare) ──
-    print("\n[3/6] 拉取中国宏观数据 (AKShare)...")
+    print("\n[3/8] 拉取中国宏观数据 (AKShare)...")
     ak_fetcher = AKShareFetcher()
     if use_cache:
         china_data = {}
@@ -169,10 +176,84 @@ def generate_macro_report(use_cache: bool = False):
                 cache.save("china_macro", df)
     print(f"  已获取 {len(china_data)} 个中国指标")
 
-    # ── 4. 构建所有标签映射 ──
+    # ── 4. 运行分析引擎 ──
+    print("\n[4/8] 运行分析引擎...")
+    combined_us_data = {**cpi_data, **fred_data}
+
+    # 经济周期评估
+    cycle_assessor = CycleAssessor()
+    cycle_signals = cycle_assessor.assess(combined_us_data, china_data)
+    print(f"  经济周期: {len(cycle_signals)} 个信号")
+
+    # 衰退概率追踪
+    recession_tracker = RecessionTracker()
+    recession_yc = recession_tracker.compute_yield_curve(combined_us_data)
+    recession_sahm = recession_tracker.sahm_rule(combined_us_data.get("unemployment"))
+    recession_composite = recession_tracker.composite_probability(combined_us_data)
+    recession_data = {
+        "yield_curve": recession_yc,
+        "sahm_rule": recession_sahm,
+        "composite": recession_composite,
+    }
+    print(f"  衰退概率: {recession_composite.get('probability', 'N/A') if recession_composite else 'N/A'}%")
+
+    # 通胀深度分析
+    inflation_analyzer = InflationAnalyzer()
+    inflation_analysis = inflation_analyzer.decompose(fred_data, cpi_data)
+    print(f"  通胀分析: {len(inflation_analysis)} 个维度")
+
+    # 就业市场仪表盘
+    labor_dashboard = LaborDashboard()
+    labor_analysis = labor_dashboard.assess(combined_us_data)
+    print(f"  就业分析: {len(labor_analysis.get('signals', []))} 个信号")
+
+    # 中国信贷脉冲
+    china_credit = ChinaCreditPulse()
+    credit_pulse = china_credit.compute(china_data)
+    print(f"  信贷脉冲: {credit_pulse.get('signal', 'N/A')}")
+
+    # 历史上下文 & 百分位排名
+    historical_context = HistoricalContext()
+    # 计算美国关键指标的历史上下文
+    us_context_keys = {
+        k: combined_us_data[k]
+        for k in [
+            "unemployment", "fed_funds_rate", "treasury_10y", "treasury_2y",
+            "yield_spread", "consumer_sentiment", "industrial_production",
+            "capacity_utilization", "nonfarm_payrolls", "initial_claims",
+        ]
+        if k in combined_us_data
+    }
+    us_context = historical_context.compute_batch(us_context_keys)
+    # 计算中国关键指标的历史上下文
+    cn_context_keys = {
+        k: china_data[k]
+        for k in [
+            "pmi_manufacturing", "pmi_non_manufacturing",
+            "fx_reserves", "gold_reserves",
+            "lpr_1y", "lpr_5y", "shibor_on", "shibor_3m",
+        ]
+        if k in china_data
+    }
+    cn_context = historical_context.compute_batch(cn_context_keys)
+    context_data = {**us_context, **cn_context}
+    print(f"  历史上下文: {len(context_data)} 个指标")
+
+    # ── 5. 构建所有标签映射 ──
     all_labels = {}
     all_labels.update(bls.labels)
     all_labels.update(fred.labels)
+    # 新增 FRED 指标标签
+    extra_labels = {
+        "cpi_all_urban": "CPI-U 指数", "core_cpi_fred": "核心 CPI 指数",
+        "sticky_cpi": "粘性 CPI", "flexible_cpi": "弹性 CPI",
+        "trimmed_mean_pce": "截尾均值 PCE", "median_cpi": "中位 CPI",
+        "jolts_openings": "JOLTS 职位空缺", "jolts_quits": "辞职率",
+        "u6_rate": "U-6 广义失业率", "prime_age_lfpr": "25-54岁参与率",
+        "hy_spread": "高收益利差", "ig_spread": "投资级利差",
+        "treasury_3m": "3月期国债", "lei": "LEI 领先指标",
+    }
+    all_labels.update(extra_labels)
     # 中国指标标签
     china_labels = {
         "gdp": "GDP", "cpi": "CPI", "ppi": "PPI",
@@ -187,8 +268,8 @@ def generate_macro_report(use_cache: bool = False):
     }
     all_labels.update(china_labels)
 
-    # ── 5. 生成图表 ──
-    print("\n[4/6] 生成分析图表...")
+    # ── 6. 生成图表 ──
+    print("\n[5/8] 生成分析图表...")
 
     # CPI 图表 (使用专用 builder)
     cpi_builder = CPIChartBuilder(cpi_data, bls.labels)
@@ -208,7 +289,27 @@ def generate_macro_report(use_cache: bool = False):
     # ── Section 1: 美国宏观数据 ──
     us_subsections = []
 
-    # 2.1 CPI & 通胀
+    # --- 经济周期 & 衰退概率 (INSERT BEFORE CPI) ---
+    cycle_recession_charts = [
+        {"title": "收益率曲线",
+         "html": _chart_html(macro_builder.multi_line(
+             [("treasury_10y", "value", "10年期国债"),
+              ("treasury_2y", "value", "2年期国债"),
+              ("treasury_3m", "value", "3月期国债")],
+             title="美国国债收益率曲线 (%)", y_label="%"))},
+        {"title": "LEI 走势",
+         "html": _chart_html(macro_builder.line_trend(
+             ["lei"], y_col="value",
+             title="LEI 领先经济指标", y_label="指数"))},
+        {"title": "信用利差",
+         "html": _chart_html(macro_builder.multi_line(
+             [("hy_spread", "value", "高收益利差"),
+              ("ig_spread", "value", "投资级利差")],
+             title="信用利差 (%)", y_label="%"))},
+    ]
+    us_subsections.append({"title": "经济周期 & 衰退概率", "charts": cycle_recession_charts})
+
+    # --- 通胀深度分析 (REPLACES "CPI & 通胀") ---
     cpi_charts = [
         {"title": "CPI 同比趋势（总指数 vs 核心）",
          "html": _chart_html(cpi_builder.yoy_trend(["all_items", "core"]))},
@@ -220,8 +321,16 @@ def generate_macro_report(use_cache: bool = False):
          "html": _chart_html(cpi_builder.components_latest_yoy(avail_cpi))},
         {"title": "CPI 指数走势",
          "html": _chart_html(cpi_builder.index_value_trend(["all_items", "core"]))},
+        {"title": "多维通胀对比",
+         "html": _chart_html(macro_builder.multi_line(
+             [("cpi_all_urban", "yoy_pct", "CPI-U 同比"),
+              ("core_cpi_fred", "yoy_pct", "核心 CPI 同比"),
+              ("sticky_cpi", "value", "粘性 CPI"),
+              ("trimmed_mean_pce", "value", "截尾均值 PCE"),
+              ("median_cpi", "value", "中位 CPI")],
+             title="多维通胀指标对比 (% YoY)", y_label="% YoY"))},
     ]
-    us_subsections.append({"title": "CPI & 通胀", "charts": cpi_charts})
+    us_subsections.append({"title": "通胀深度分析", "charts": cpi_charts})
 
     # 2.2 PPI & PCE
     ppi_pce_charts = [
@@ -241,7 +350,7 @@ def generate_macro_report(use_cache: bool = False):
     ]
     us_subsections.append({"title": "PPI & PCE", "charts": ppi_pce_charts})
 
-    # 2.3 就业市场
+    # 2.3 就业市场 (UPGRADED with new charts)
     employment_charts = [
         {"title": "失业率趋势",
          "html": _chart_html(macro_builder.multi_line(
@@ -260,6 +369,25 @@ def generate_macro_report(use_cache: bool = False):
          "html": _chart_html(macro_builder.dual_axis(
              "avg_hourly_earnings", y1_col="value", y2_col="yoy_pct",
              title="平均时薪与同比变化", y1_label="美元", y2_label="同比 (%)"))},
+        {"title": "U-3 vs U-6",
+         "html": _chart_html(macro_builder.multi_line(
+             [("unemployment", "value", "U-3 失业率"),
+              ("u6_rate", "value", "U-6 广义失业率")],
+             title="U-3 vs U-6 失业率 (%)", y_label="%"))},
+        {"title": "JOLTS 职位空缺 vs 辞职率",
+         "html": _chart_html(macro_builder.dual_axis(
+             "jolts_openings", y1_col="value", y2_col="value",
+             title="JOLTS 职位空缺 vs 辞职率", y1_label="职位空缺 (千)", y2_label="辞职率 (%)"))
+         if False else  # dual_axis works on single key; use multi_line for two different keys
+         _chart_html(macro_builder.multi_line(
+             [("jolts_openings", "value", "JOLTS 职位空缺 (千)"),
+              ("jolts_quits", "value", "辞职率 (%)")],
+             title="JOLTS 职位空缺 vs 辞职率", y_label=""))},
+        {"title": "25-54岁 vs 总体参与率",
+         "html": _chart_html(macro_builder.multi_line(
+             [("prime_age_lfpr", "value", "25-54岁参与率"),
+              ("labor_participation", "value", "总体劳动参与率")],
+             title="25-54岁 vs 总体劳动参与率 (%)", y_label="%"))},
     ]
     us_subsections.append({"title": "就业市场", "charts": employment_charts})
 
@@ -338,10 +466,41 @@ def generate_macro_report(use_cache: bool = False):
     # ── Section 2: 中国宏观数据 ──
     cn_subsections = []
 
+    # --- 信贷脉冲 (INSERT AT TOP) ---
+    # Build cn_builder with credit pulse data added
+    cn_builder_data = dict(china_data)  # copy to avoid mutating original
+    # Add pulse_series to cn_builder's data for bar_chart rendering
+    pulse_series = credit_pulse.get("pulse_series")
+    if pulse_series is not None and not pulse_series.empty:
+        # Rename pulse_pct to value so bar_chart can use y_col="value"
+        pulse_for_chart = pulse_series.copy()
+        if "pulse_pct" in pulse_for_chart.columns:
+            pulse_for_chart = pulse_for_chart.rename(columns={"pulse_pct": "value"})
+        cn_builder_data["credit_pulse_series"] = pulse_for_chart
+
+    cn_builder = MacroChartBuilder(cn_builder_data, {**china_labels, "credit_pulse_series": "信贷脉冲"})
+
+    cn_credit_charts = []
+    if pulse_series is not None and not pulse_series.empty:
+        cn_credit_charts.append(
+            {"title": "信贷脉冲",
+             "html": _chart_html(cn_builder.bar_chart(
+                 "credit_pulse_series", y_col="value", last_n=36,
+                 title="中国信贷脉冲 (12月滚动贷款同比变化 %)"))}
+        )
+    # M1 vs M2 增速 (keep existing)
+    cn_credit_charts.append(
+        {"title": "M1 vs M2 增速",
+         "html": _chart_html(cn_builder.multi_line(
+             [("m2", "yoy_pct", "M2 同比"), ("m1", "yoy_pct", "M1 同比")],
+             title="中国货币供应增速 (%)", y_label="同比 (%)"))}
+    )
+    cn_subsections.append({"title": "信贷脉冲", "charts": cn_credit_charts})
+
     # 3.1 GDP
     cn_gdp_charts = [
         {"title": "中国 GDP 走势",
-         "html": _chart_html(macro_builder.dual_axis(
+         "html": _chart_html(cn_builder.dual_axis(
              "gdp" if "gdp" not in cpi_data else "cn_gdp",
              y1_col="value", y2_col="yoy_pct",
              title="中国 GDP 与同比增长", y1_label="亿元", y2_label="同比 (%)"))},
@@ -358,9 +517,6 @@ def generate_macro_report(use_cache: bool = False):
                  title="中国 GDP 与同比增长", y1_label="亿元", y2_label="同比 (%)"))},
         ]
     cn_subsections.append({"title": "GDP & 经济增长", "charts": cn_gdp_charts})
-
-    # 使用中国专用 builder 避免 key 冲突
-    cn_builder = MacroChartBuilder(china_data, china_labels)
 
     # 3.2 CPI & PPI
     cn_price_charts = [
@@ -389,7 +545,7 @@ def generate_macro_report(use_cache: bool = False):
     ]
     cn_subsections.append({"title": "PMI", "charts": cn_pmi_charts})
 
-    # 3.4 货币供应
+    # 3.4 货币供应 (kept but no longer duplicated since M1/M2 is in 信贷脉冲 section)
     cn_money_charts = [
         {"title": "M2 & M1 同比增速",
          "html": _chart_html(cn_builder.multi_line(
@@ -456,8 +612,8 @@ def generate_macro_report(use_cache: bool = False):
     total_charts = sum(len(sub["charts"]) for sec in sections for sub in sec["subsections"])
     print(f"  已生成 {total_charts} 张图表")
 
-    # ── 6. 构建摘要表格 ──
-    print("\n[5/6] 构建摘要数据...")
+    # ── 7. 构建摘要表格 ──
+    print("\n[6/8] 构建摘要数据...")
     us_rate_keys = {"unemployment", "fed_funds_rate", "treasury_10y", "treasury_2y",
                      "yield_spread", "labor_participation", "consumer_sentiment",
                      "capacity_utilization"}
@@ -490,8 +646,8 @@ def generate_macro_report(use_cache: bool = False):
     cn_rate_keys = set()
     china_summary = _build_summary(china_data, cn_keys, china_labels, cn_rate_keys)
 
-    # ── 7. 渲染 HTML ──
-    print("\n[6/6] 生成报告文件...")
+    # ── 8. 渲染 HTML ──
+    print("\n[7/8] 生成报告文件...")
     output_dir = Path("output") / "macro"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -506,12 +662,20 @@ def generate_macro_report(use_cache: bool = False):
         us_summary=us_summary,
         china_summary=china_summary,
         sections=sections,
+        # Analysis engine results
+        cycle_signals=cycle_signals,
+        recession_data=recession_data,
+        inflation_analysis=inflation_analysis,
+        labor_analysis=labor_analysis,
+        credit_pulse=credit_pulse,
+        context_data=context_data,
     )
 
     html_path = output_dir / "macro_report.html"
     html_path.write_text(html_content, encoding="utf-8")
     print(f"  HTML 报告: {html_path}")
 
+    print("\n[8/8] 完成!")
     print("\n" + "=" * 60)
     print(f"  报告生成完成！打开 {html_path} 查看")
     print("=" * 60)

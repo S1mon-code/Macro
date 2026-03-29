@@ -87,15 +87,16 @@ class TestAKShareFetcher:
 
     def test_parse_quarter_single(self):
         dt = AKShareFetcher._parse_quarter("2024年第1季度")
-        assert dt == datetime(2024, 1, 1)
+        assert dt == datetime(2024, 3, 1)  # Q1 → March
 
     def test_parse_quarter_q3(self):
         dt = AKShareFetcher._parse_quarter("2024年第3季度")
-        assert dt == datetime(2024, 7, 1)
+        assert dt == datetime(2024, 9, 1)  # Q3 → September
 
     def test_parse_quarter_cumulative(self):
+        # Cumulative rows are now skipped (return None)
         dt = AKShareFetcher._parse_quarter("2024年第1-4季度")
-        assert dt == datetime(2024, 1, 1)
+        assert dt is None
 
     def test_parse_quarter_invalid(self):
         assert AKShareFetcher._parse_quarter("bad") is None
@@ -124,11 +125,11 @@ class TestAKShareFetcher:
 
         assert "gdp" in result
         df = result["gdp"]
-        # 2015 row should be filtered out (start_year=2016)
+        # 2015 row filtered out (start_year=2016), 2 rows remain
         assert len(df) == 2
         assert df.iloc[0]["indicator"] == "gdp"
         assert df.iloc[0]["value"] == 284997.0
-        assert df.iloc[0]["date"] == datetime(2023, 10, 1)
+        assert df.iloc[0]["date"] == datetime(2023, 12, 1)  # Q4 → December
 
     # ── CPI normalizer ──────────────────────────────────────────────────
 
@@ -289,4 +290,4 @@ class TestAKShareFetcher:
 
         df = result["gdp"]
         assert len(df) == 1
-        assert df.iloc[0]["date"] == datetime(2016, 1, 1)
+        assert df.iloc[0]["date"] == datetime(2016, 3, 1)  # Q1 → March

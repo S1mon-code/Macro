@@ -375,6 +375,125 @@
             background: #1a1a2e;
         }
 
+        /* ── Traffic Light Dashboard ── */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .signal-card {
+            background: #111;
+            border: 1px solid #1a1a2e;
+            border-radius: 8px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .signal-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .signal-dot.green { background: #16c79a; box-shadow: 0 0 8px #16c79a55; }
+        .signal-dot.yellow { background: #f5a623; box-shadow: 0 0 8px #f5a62355; }
+        .signal-dot.red { background: #e94560; box-shadow: 0 0 8px #e9456055; }
+        .signal-info { flex: 1; }
+        .signal-name { font-size: 13px; color: #ccc; font-weight: 600; }
+        .signal-value { font-size: 12px; color: #888; margin-top: 2px; }
+        .signal-desc { font-size: 11px; color: #666; margin-top: 2px; }
+
+        /* ── Recession Probability ── */
+        .recession-panel {
+            background: #111;
+            border: 1px solid #1a1a2e;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .recession-number {
+            font-size: 48px;
+            font-weight: 700;
+            margin: 8px 0;
+        }
+        .recession-number.low { color: #16c79a; }
+        .recession-number.medium { color: #f5a623; }
+        .recession-number.high { color: #e94560; }
+        .recession-label { color: #888; font-size: 14px; }
+        .recession-components {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        .recession-component {
+            text-align: center;
+        }
+        .recession-component .comp-value { font-size: 18px; font-weight: 600; color: #ccc; }
+        .recession-component .comp-label { font-size: 11px; color: #666; margin-top: 2px; }
+
+        /* ── Inflation Decomposition ── */
+        .inflation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+        .inflation-metric {
+            background: #111;
+            border: 1px solid #1a1a2e;
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+        .inflation-metric .metric-name { font-size: 12px; color: #888; }
+        .inflation-metric .metric-value { font-size: 22px; font-weight: 700; color: #e0e0e0; margin: 4px 0; }
+        .inflation-metric .metric-target { font-size: 11px; }
+        .inflation-metric .metric-target.above { color: #e94560; }
+        .inflation-metric .metric-target.below { color: #16c79a; }
+        .inflation-metric .metric-target.at { color: #f5a623; }
+
+        /* ── Credit Pulse ── */
+        .pulse-panel {
+            background: #111;
+            border: 1px solid #1a1a2e;
+            border-radius: 12px;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        .pulse-value { font-size: 36px; font-weight: 700; }
+        .pulse-signal { font-size: 16px; color: #888; }
+
+        /* ── Percentile Bar ── */
+        .percentile-bar {
+            width: 100%;
+            height: 8px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            position: relative;
+            margin: 6px 0;
+        }
+        .percentile-bar .bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            background: linear-gradient(90deg, #16c79a, #f5a623, #e94560);
+        }
+        .percentile-bar .bar-marker {
+            position: absolute;
+            top: -3px;
+            width: 3px;
+            height: 14px;
+            background: #fff;
+            border-radius: 2px;
+            transform: translateX(-50%);
+        }
+
         /* ── Responsive ── */
         @media (max-width: 960px) {
             .sidebar { display: none; }
@@ -389,6 +508,12 @@
     <nav class="sidebar">
         <div class="sidebar-title">目录导航</div>
         <a href="#overview" class="section-link">全球宏观概览</a>
+        {% if cycle_signals %}
+        <a href="#cycle-dashboard" class="section-link">经济周期仪表盘</a>
+        {% endif %}
+        {% if recession_data %}
+        <a href="#recession-prob" class="sub-link">衰退概率</a>
+        {% endif %}
         {% for section in sections %}
         {% set sec_idx = loop.index %}
         <a href="#section-{{ sec_idx }}" class="section-link">{{ section.title }}</a>
@@ -479,6 +604,47 @@
                 </div>
             </div>
 
+            {% if cycle_signals %}
+            <div id="cycle-dashboard" class="section">
+                <h2>经济周期仪表盘</h2>
+                <div class="dashboard-grid">
+                    {% for signal in cycle_signals %}
+                    <div class="signal-card">
+                        <div class="signal-dot {{ signal.color }}"></div>
+                        <div class="signal-info">
+                            <div class="signal-name">{{ signal.name }}</div>
+                            <div class="signal-value">{{ signal.value }}</div>
+                            <div class="signal-desc">{{ signal.description }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if recession_data and recession_data.probability is defined %}
+            <div id="recession-prob" class="section">
+                <h2>衰退概率评估</h2>
+                <div class="recession-panel">
+                    <div class="recession-label">综合衰退概率</div>
+                    <div class="recession-number {{ 'low' if recession_data.probability < 25 else ('medium' if recession_data.probability < 50 else 'high') }}">
+                        {{ "%.1f"|format(recession_data.probability) }}%
+                    </div>
+                    <div class="recession-label">{{ recession_data.signal }}</div>
+                    {% if recession_data.components %}
+                    <div class="recession-components">
+                        {% for comp in recession_data.components %}
+                        <div class="recession-component">
+                            <div class="comp-value">{{ "%.0f"|format(comp.score) }}</div>
+                            <div class="comp-label">{{ comp.name }} ({{ comp.weight }})</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Dynamic Sections -->
             {% for section in sections %}
             {% set sec_idx2 = loop.index %}
@@ -487,6 +653,9 @@
                 {% for sub in section.subsections %}
                 <div id="section-{{ sec_idx2 }}-{{ loop.index }}" class="subsection">
                     <h3>{{ sub.title }}</h3>
+                    {% if sub.analysis_html %}
+                    {{ sub.analysis_html | safe }}
+                    {% endif %}
                     {% if sub.table %}
                     <div class="data-table-wrapper">
                         {{ sub.table | safe }}
