@@ -26,6 +26,7 @@ from analysis.china_credit import ChinaCreditPulse
 from analysis.context import HistoricalContext
 from analysis.regime import MacroRegime
 from analysis.scorecard import AssetScorecard
+from analysis.cpi_forecast import CPIForecaster
 
 
 def _chart_html(fig) -> str:
@@ -260,6 +261,16 @@ def generate_macro_report(use_cache: bool = False):
         labor_data=labor_analysis,
     )
     print(f"  资产评分: {len(asset_scores)} 个标的")
+
+    # CPI 预测
+    cpi_forecaster = CPIForecaster()
+    cpi_forecast = cpi_forecaster.forecast(cpi_data, fred_data)
+    if "error" not in cpi_forecast:
+        print(f"  CPI 预测 ({cpi_forecast.get('forecast_month', '?')}): "
+              f"Headline MoM {cpi_forecast.get('headline_mom_forecast', 0):+.3f}%, "
+              f"YoY {cpi_forecast.get('headline_yoy_forecast', 0):.3f}%")
+    else:
+        print(f"  CPI 预测: {cpi_forecast.get('error')}")
     for key, val in asset_scores.items():
         print(f"    {val['name']}: {val['score']:+.3f} ({val['signal']})")
 
@@ -696,6 +707,7 @@ def generate_macro_report(use_cache: bool = False):
         regime_us=regime_us,
         regime_china=regime_china,
         asset_scores=asset_scores,
+        cpi_forecast=cpi_forecast,
     )
 
     html_path = output_dir / "macro_report.html"

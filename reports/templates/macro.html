@@ -604,6 +604,63 @@
         .factor-table .score-neg { color: #e94560; }
         .factor-table .score-neu { color: #f5a623; }
 
+        /* ── CPI Forecast ── */
+        .cpi-forecast-header {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .cpi-forecast-header .cpi-metric {
+            background: #111;
+            border: 1px solid #1a1a2e;
+            border-radius: 10px;
+            padding: 16px 24px;
+            flex: 1;
+            min-width: 180px;
+            text-align: center;
+        }
+        .cpi-metric .cm-label { font-size: 12px; color: #888; }
+        .cpi-metric .cm-value { font-size: 28px; font-weight: 700; color: #e0e0e0; margin: 4px 0; }
+        .cpi-component-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        .cpi-component-table th {
+            background: #1a1a2e;
+            color: #e94560;
+            padding: 8px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .cpi-component-table td {
+            padding: 8px 14px;
+            border-bottom: 1px solid #0d0d20;
+        }
+        .cpi-component-table td:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; }
+        .cpi-risks {
+            display: flex;
+            gap: 16px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        .cpi-risks .risk-box {
+            flex: 1;
+            min-width: 250px;
+            background: #111;
+            border: 1px solid #1a1a2e;
+            border-radius: 8px;
+            padding: 14px;
+        }
+        .risk-box h4 { font-size: 13px; margin-bottom: 8px; }
+        .risk-box.upside h4 { color: #e94560; }
+        .risk-box.downside h4 { color: #16c79a; }
+        .risk-box ul { list-style: none; padding: 0; }
+        .risk-box li { font-size: 12px; color: #aaa; padding: 3px 0; }
+        .risk-box li:before { content: "• "; }
+
         /* ── Responsive ── */
         @media (max-width: 960px) {
             .sidebar { display: none; }
@@ -629,6 +686,9 @@
         {% endif %}
         {% if regime_us %}
         <a href="#macro-regime" class="sub-link">宏观象限</a>
+        {% endif %}
+        {% if cpi_forecast and cpi_forecast.forecast_month is defined %}
+        <a href="#cpi-forecast" class="sub-link">CPI 预测</a>
         {% endif %}
         {% for section in sections %}
         {% set sec_idx = loop.index %}
@@ -830,6 +890,99 @@
                     </div>
                     {% endfor %}
                 </div>
+            </div>
+            {% endif %}
+
+            <!-- CPI Forecast -->
+            {% if cpi_forecast and cpi_forecast.forecast_month is defined and cpi_forecast.error is not defined %}
+            <div id="cpi-forecast" class="section">
+                <h2>CPI 预测 — {{ cpi_forecast.forecast_month }}</h2>
+
+                <div class="cpi-forecast-header">
+                    <div class="cpi-metric">
+                        <div class="cm-label">Headline MoM 预测</div>
+                        <div class="cm-value">{{ "%+.2f"|format(cpi_forecast.headline_mom_forecast) }}%</div>
+                    </div>
+                    <div class="cpi-metric">
+                        <div class="cm-label">Core MoM 预测</div>
+                        <div class="cm-value">{{ "%+.2f"|format(cpi_forecast.core_mom_forecast) }}%</div>
+                    </div>
+                    {% if cpi_forecast.headline_yoy_forecast %}
+                    <div class="cpi-metric">
+                        <div class="cm-label">Headline YoY 预测</div>
+                        <div class="cm-value">{{ "%.2f"|format(cpi_forecast.headline_yoy_forecast) }}%</div>
+                    </div>
+                    {% endif %}
+                    {% if cpi_forecast.core_yoy_forecast %}
+                    <div class="cpi-metric">
+                        <div class="cm-label">Core YoY 预测</div>
+                        <div class="cm-value">{{ "%.2f"|format(cpi_forecast.core_yoy_forecast) }}%</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <h3>分项预测明细</h3>
+                <table class="cpi-component-table">
+                    <thead>
+                        <tr>
+                            <th>分项</th>
+                            <th>权重 (%)</th>
+                            <th>MoM 预测 (%)</th>
+                            <th>贡献 (bps)</th>
+                            <th>预测方法</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for comp in cpi_forecast.component_forecasts %}
+                        <tr>
+                            <td>{{ comp.name }}</td>
+                            <td>{{ "%.1f"|format(comp.weight) }}</td>
+                            <td>{{ "%+.3f"|format(comp.mom_forecast) }}</td>
+                            <td>{{ "%+.2f"|format(comp.contribution_bps) }}</td>
+                            <td style="font-size:11px;color:#666">{{ comp.method }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                {% if cpi_forecast.base_effect and cpi_forecast.base_effect.last_year_mom is not none %}
+                <div style="background:#111;border:1px solid #1a1a2e;border-radius:8px;padding:14px;margin-bottom:16px">
+                    <div style="font-size:13px;color:#888">基数效应</div>
+                    <div style="font-size:14px;color:#ccc;margin-top:4px">
+                        {{ cpi_forecast.base_effect.description }}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if cpi_forecast.key_drivers %}
+                <h3>核心驱动因素</h3>
+                <ul style="list-style:none;padding:0">
+                    {% for driver in cpi_forecast.key_drivers %}
+                    <li style="padding:4px 0;color:#ccc;font-size:13px">▸ {{ driver }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
+                {% if cpi_forecast.risks %}
+                <div class="cpi-risks">
+                    <div class="risk-box upside">
+                        <h4>上行风险</h4>
+                        <ul>
+                            {% for r in cpi_forecast.risks.upside %}
+                            <li>{{ r }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="risk-box downside">
+                        <h4>下行风险</h4>
+                        <ul>
+                            {% for r in cpi_forecast.risks.downside %}
+                            <li>{{ r }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
             </div>
             {% endif %}
 
