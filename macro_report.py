@@ -181,6 +181,9 @@ def generate_macro_report(use_cache: bool = False):
         "exports": "出口", "imports": "进口",
         "industrial": "工业增加值", "retail": "社会消费品零售",
         "credit": "新增人民币贷款",
+        "fx_reserves": "外汇储备", "gold_reserves": "黄金储备",
+        "lpr_1y": "LPR 1年期", "lpr_5y": "LPR 5年期",
+        "shibor_on": "Shibor 隔夜", "shibor_3m": "Shibor 3个月",
     }
     all_labels.update(china_labels)
 
@@ -226,6 +229,11 @@ def generate_macro_report(use_cache: bool = False):
          "html": _chart_html(macro_builder.dual_axis(
              "ppi", y1_col="value", y2_col="yoy_pct",
              title="PPI 指数与同比变化", y1_label="指数值", y2_label="同比 (%)"))},
+        {"title": "PPI 最终需求 vs 核心 PPI 同比",
+         "html": _chart_html(macro_builder.multi_line(
+             [("ppi_final_demand", "yoy_pct", "PPI 最终需求同比"),
+              ("core_ppi", "yoy_pct", "核心 PPI 同比")],
+             title="PPI 最终需求 & 核心 PPI 同比变化 (%)", y_label="同比 (%)"))},
         {"title": "PCE vs 核心 PCE 同比",
          "html": _chart_html(macro_builder.multi_line(
              [("pce", "yoy_pct", "PCE 同比"), ("core_pce", "yoy_pct", "核心 PCE 同比")],
@@ -248,6 +256,10 @@ def generate_macro_report(use_cache: bool = False):
          "html": _chart_html(macro_builder.line_trend(
              ["initial_claims"], y_col="value",
              title="初请失业金人数（月均）", y_label="人数"))},
+        {"title": "平均时薪走势",
+         "html": _chart_html(macro_builder.dual_axis(
+             "avg_hourly_earnings", y1_col="value", y2_col="yoy_pct",
+             title="平均时薪与同比变化", y1_label="美元", y2_label="同比 (%)"))},
     ]
     us_subsections.append({"title": "就业市场", "charts": employment_charts})
 
@@ -301,8 +313,34 @@ def generate_macro_report(use_cache: bool = False):
          "html": _chart_html(macro_builder.line_trend(
              ["housing_starts"], y_col="value",
              title="新屋开工（千套）", y_label="千套"))},
+        {"title": "产能利用率",
+         "html": _chart_html(macro_builder.line_trend(
+             ["capacity_utilization"], y_col="value",
+             title="产能利用率 (%)", y_label="%"))},
     ]
     us_subsections.append({"title": "工业 & 房地产", "charts": industry_charts})
+
+    # 2.8 贸易 & 货币
+    trade_money_charts = [
+        {"title": "贸易差额走势",
+         "html": _chart_html(macro_builder.dual_axis(
+             "trade_balance", y1_col="value", y2_col="yoy_pct",
+             title="美国贸易差额与同比变化", y1_label="百万美元", y2_label="同比 (%)"))},
+        {"title": "M2 货币供应量",
+         "html": _chart_html(macro_builder.dual_axis(
+             "m2_money_supply", y1_col="value", y2_col="yoy_pct",
+             title="M2 货币供应量与同比增长", y1_label="十亿美元", y2_label="同比 (%)"))},
+    ]
+    us_subsections.append({"title": "贸易 & 货币", "charts": trade_money_charts})
+
+    # 2.9 美元指数
+    dollar_charts = [
+        {"title": "美元指数走势",
+         "html": _chart_html(macro_builder.line_trend(
+             ["dollar_index"], y_col="value",
+             title="美元指数 (DTWEXBGS)", y_label="指数"))},
+    ]
+    us_subsections.append({"title": "美元指数", "charts": dollar_charts})
 
     sections.append({"title": "美国宏观数据", "subsections": us_subsections})
 
@@ -391,6 +429,37 @@ def generate_macro_report(use_cache: bool = False):
     ]
     cn_subsections.append({"title": "工业 & 消费", "charts": cn_indret_charts})
 
+    # 3.7 外汇 & 黄金储备
+    cn_fx_charts = [
+        {"title": "外汇储备走势",
+         "html": _chart_html(cn_builder.dual_axis(
+             "fx_reserves", y1_col="value", y2_col="yoy_pct",
+             title="中国外汇储备与同比变化", y1_label="亿美元", y2_label="同比 (%)"))},
+        {"title": "黄金储备走势",
+         "html": _chart_html(cn_builder.dual_axis(
+             "gold_reserves", y1_col="value", y2_col="yoy_pct",
+             title="中国黄金储备与同比变化", y1_label="万盎司", y2_label="同比 (%)"))},
+    ]
+    cn_subsections.append({"title": "外汇 & 黄金储备", "charts": cn_fx_charts})
+
+    # 3.8 LPR 利率
+    cn_lpr_charts = [
+        {"title": "LPR 利率走势",
+         "html": _chart_html(cn_builder.multi_line(
+             [("lpr_1y", "value", "LPR 1年期"), ("lpr_5y", "value", "LPR 5年期")],
+             title="中国 LPR 利率 (%)", y_label="%"))},
+    ]
+    cn_subsections.append({"title": "LPR 利率", "charts": cn_lpr_charts})
+
+    # 3.9 Shibor 利率
+    cn_shibor_charts = [
+        {"title": "Shibor 利率走势",
+         "html": _chart_html(cn_builder.multi_line(
+             [("shibor_on", "value", "Shibor 隔夜"), ("shibor_3m", "value", "Shibor 3个月")],
+             title="中国 Shibor 利率 (%)", y_label="%"))},
+    ]
+    cn_subsections.append({"title": "Shibor 利率", "charts": cn_shibor_charts})
+
     sections.append({"title": "中国宏观数据", "subsections": cn_subsections})
 
     total_charts = sum(len(sub["charts"]) for sec in sections for sub in sec["subsections"])
@@ -399,7 +468,8 @@ def generate_macro_report(use_cache: bool = False):
     # ── 6. 构建摘要表格 ──
     print("\n[5/6] 构建摘要数据...")
     us_rate_keys = {"unemployment", "fed_funds_rate", "treasury_10y", "treasury_2y",
-                     "yield_spread", "labor_participation", "consumer_sentiment"}
+                     "yield_spread", "labor_participation", "consumer_sentiment",
+                     "capacity_utilization"}
     us_keys = [
         ("all_items", "yoy_pct"), ("core", "yoy_pct"),
         ("pce", "yoy_pct"), ("core_pce", "yoy_pct"),
@@ -411,6 +481,10 @@ def generate_macro_report(use_cache: bool = False):
         ("treasury_2y", "value"), ("yield_spread", "value"),
         ("consumer_sentiment", "value"), ("retail_sales", "yoy_pct"),
         ("industrial_production", "yoy_pct"), ("housing_starts", "value"),
+        ("ppi_final_demand", "yoy_pct"), ("core_ppi", "yoy_pct"),
+        ("avg_hourly_earnings", "yoy_pct"), ("trade_balance", "value"),
+        ("m2_money_supply", "yoy_pct"), ("capacity_utilization", "value"),
+        ("dollar_index", "value"),
     ]
     us_summary = _build_summary({**cpi_data, **fred_data}, us_keys, all_labels, us_rate_keys)
 
@@ -419,6 +493,9 @@ def generate_macro_report(use_cache: bool = False):
         ("pmi_manufacturing", "value"), ("m2", "yoy_pct"),
         ("exports", "yoy_pct"), ("industrial", "yoy_pct"),
         ("retail", "yoy_pct"),
+        ("fx_reserves", "value"), ("gold_reserves", "value"),
+        ("lpr_1y", "value"), ("lpr_5y", "value"),
+        ("shibor_on", "value"), ("shibor_3m", "value"),
     ]
     cn_rate_keys = set()
     china_summary = _build_summary(china_data, cn_keys, china_labels, cn_rate_keys)

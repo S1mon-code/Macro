@@ -33,6 +33,9 @@ class AKShareFetcher:
             "industrial": self._normalize_industrial,
             "retail": self._normalize_retail,
             "credit": self._normalize_credit,
+            "fx_reserves": self._normalize_fx_reserves,
+            "lpr": self._normalize_lpr,
+            "shibor": self._normalize_shibor,
         }
 
     # ── Date parsing helpers ────────────────────────────────────────────
@@ -47,23 +50,20 @@ class AKShareFetcher:
 
     @staticmethod
     def _parse_quarter(text: str) -> datetime | None:
-        """Parse Chinese quarterly date.
-        '2024年第1季度'  → datetime(2024, 1, 1)
-        '2024年第1-4季度' → datetime(2024, 1, 1)  (cumulative = Q1 start)
+        """Parse Chinese quarterly date (single quarter only).
+        '2024年第1季度'  → datetime(2024, 3, 1)   (end-of-quarter month)
+        '2024年第1-4季度' → None                    (cumulative → skip)
         """
-        # Cumulative format: "2024年第1-4季度"
+        # Cumulative format: "2024年第1-4季度" → skip
         m = re.match(r"(\d{4})年第(\d)-\d季度", str(text))
         if m:
-            year = int(m.group(1))
-            q_start = int(m.group(2))
-            month = (q_start - 1) * 3 + 1
-            return datetime(year, month, 1)
+            return None
         # Single quarter: "2024年第1季度"
         m = re.match(r"(\d{4})年第(\d)季度", str(text))
         if m:
             year = int(m.group(1))
             q = int(m.group(2))
-            month = (q - 1) * 3 + 1
+            month = q * 3  # Q1→3, Q2→6, Q3→9, Q4→12
             return datetime(year, month, 1)
         return None
 
@@ -72,7 +72,10 @@ class AKShareFetcher:
         if val is None or val == "" or val == "-":
             return None
         try:
-            return float(val)
+            result = float(val)
+            if pd.isna(result):
+                return None
+            return result
         except (ValueError, TypeError):
             return None
 
@@ -125,7 +128,7 @@ class AKShareFetcher:
                 # 用差值（适用于 PMI 等指数类指标）
                 df["yoy_pct"] = df["value"].diff(12)
             if "mom_pct" in df.columns and df["mom_pct"].isna().all() and "value" in df.columns:
-                df["mom_pct"] = df["value"].diff(1)
+                df["mom_pct"] = df["value"].pct_change(1) * 100
             result[key] = df
 
         return result
@@ -296,11 +299,15 @@ class AKShareFetcher:
     def _normalize_industrial(self, df: pd.DataFrame) -> pd.DataFrame:
         rows = []
         for _, r in df.iterrows():
+            # Skip rows where 同比增长 is NaN (e.g. Feb in combined Jan-Feb release)
+            yoy = self._safe_float(r.get("同比增长"))
+            if yoy is None:
+                continue
             date = self._parse_month(str(r.get("月份", "")))
             row = self._make_row(
                 indicator="industrial",
                 date=date,
-                yoy_pct=r.get("同比增长"),
+                yoy_pct=yoy,
             )
             if row:
                 rows.append(row)
@@ -309,11 +316,15 @@ class AKShareFetcher:
     def _normalize_retail(self, df: pd.DataFrame) -> pd.DataFrame:
         rows = []
         for _, r in df.iterrows():
+            # Skip rows where 当月 is NaN (e.g. Feb in combined Jan-Feb release)
+            value = self._safe_float(r.get("当月"))
+            if value is None:
+                continue
             date = self._parse_month(str(r.get("月份", "")))
             row = self._make_row(
                 indicator="retail",
                 date=date,
-                value=r.get("当月"),
+                value=value,
                 yoy_pct=r.get("同比增长"),
                 mom_pct=r.get("环比增长"),
             )
@@ -334,3 +345,131 @@ class AKShareFetcher:
             if row:
                 rows.append(row)
         return pd.DataFrame(rows)
+
+    def _normalize_fx_reserves(self, df: pd.DataFrame) -> dict[str, pd.DataFrame]:
+        """Normalize macro_china_fx_gold() output.
+
+        Columns: 月份, 国家外汇储备-数值, 国家外汇储备-同比, 黄金储备-数值, 黄金储备-同比
+        Produces two sub-indicators: fx_reserves and gold_reserves.
+        """
+        fx_rows = []
+        gold_rows = []
+        for _, r in df.iterrows():
+            date = self._parse_month(str(r.get("月份", "")))
+            if date is None:
+                continue
+            fx = self._make_row(
+                indicator="fx_reserves",
+                date=date,
+                value=r.get("国家外汇储备-数值"),
+                yoy_pct=r.get("国家外汇储备-同比"),
+            )
+            gold = self._make_row(
+                indicator="gold_reserves",
+                date=date,
+                value=r.get("黄金储备-数值"),
+                yoy_pct=r.get("黄金储备-同比"),
+            )
+            if fx:
+                fx_rows.append(fx)
+            if gold:
+                gold_rows.append(gold)
+        return {
+            "fx_reserves": pd.DataFrame(fx_rows),
+            "gold_reserves": pd.DataFrame(gold_rows),
+        }
+
+    def _normalize_lpr(self, df: pd.DataFrame) -> dict[str, pd.DataFrame]:
+        """Normalize macro_china_lpr() output.
+
+        Columns: TRADE_DATE, LPR1Y, LPR5Y, RATE_1, RATE_2
+        Produces two sub-indicators: lpr_1y and lpr_5y.
+        """
+        lpr1_rows = []
+        lpr5_rows = []
+        for _, r in df.iterrows():
+            raw_date = r.get("TRADE_DATE") or r.get("日期")
+            if raw_date is None:
+                continue
+            try:
+                date = pd.to_datetime(raw_date)
+            except Exception:
+                continue
+
+            # Try multiple possible column names
+            lpr1_val = None
+            for col in ["LPR1Y", "LPR_1Y", "1Y"]:
+                if r.get(col) is not None:
+                    lpr1_val = r.get(col)
+                    break
+            lpr5_val = None
+            for col in ["LPR5Y", "LPR_5Y", "5Y"]:
+                if r.get(col) is not None:
+                    lpr5_val = r.get(col)
+                    break
+
+            lpr1 = self._make_row(
+                indicator="lpr_1y",
+                date=date,
+                value=lpr1_val,
+            )
+            lpr5 = self._make_row(
+                indicator="lpr_5y",
+                date=date,
+                value=lpr5_val,
+            )
+            if lpr1:
+                lpr1_rows.append(lpr1)
+            if lpr5:
+                lpr5_rows.append(lpr5)
+        return {
+            "lpr_1y": pd.DataFrame(lpr1_rows),
+            "lpr_5y": pd.DataFrame(lpr5_rows),
+        }
+
+    def _normalize_shibor(self, df: pd.DataFrame) -> dict[str, pd.DataFrame]:
+        """Normalize macro_china_shibor_all() output.
+
+        Columns: 日期, O/N (or 隔夜), 1W, 2W, 1M, 3M, 6M, 9M, 1Y
+        Daily data — resample to monthly (last value of each month).
+        Produces: shibor_on (overnight) and shibor_3m (3-month).
+        """
+        # Parse date column
+        date_col = "日期" if "日期" in df.columns else df.columns[0]
+        df = df.copy()
+        df["_date"] = pd.to_datetime(df[date_col], errors="coerce")
+        df = df.dropna(subset=["_date"])
+        df = df.set_index("_date").sort_index()
+
+        # Identify overnight and 3M columns (actual names include -定价 suffix)
+        on_col = None
+        for candidate in ["O/N-定价", "O/N", "隔夜", "O/N(隔夜)"]:
+            if candidate in df.columns:
+                on_col = candidate
+                break
+        m3_col = None
+        for candidate in ["3M-定价", "3M", "3M(3个月)"]:
+            if candidate in df.columns:
+                m3_col = candidate
+                break
+
+        # Resample to monthly (last value)
+        on_rows = []
+        m3_rows = []
+        if on_col:
+            on_monthly = pd.to_numeric(df[on_col], errors="coerce").resample("ME").last().dropna()
+            for date, val in on_monthly.items():
+                row = self._make_row(indicator="shibor_on", date=date, value=val)
+                if row:
+                    on_rows.append(row)
+        if m3_col:
+            m3_monthly = pd.to_numeric(df[m3_col], errors="coerce").resample("ME").last().dropna()
+            for date, val in m3_monthly.items():
+                row = self._make_row(indicator="shibor_3m", date=date, value=val)
+                if row:
+                    m3_rows.append(row)
+
+        return {
+            "shibor_on": pd.DataFrame(on_rows),
+            "shibor_3m": pd.DataFrame(m3_rows),
+        }

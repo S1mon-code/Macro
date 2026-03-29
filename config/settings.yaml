@@ -65,6 +65,13 @@ fred:
     retail_sales: "RSAFS"
     industrial_production: "INDPRO"
     housing_starts: "HOUST"
+    ppi_final_demand: "PPIFIS"
+    core_ppi: "PPIFES"
+    avg_hourly_earnings: "CES0500000003"
+    trade_balance: "BOPGSTB"
+    m2_money_supply: "M2SL"
+    capacity_utilization: "TCU"
+    dollar_index: "DTWEXBGS"
   labels:
     gdp: "实际 GDP"
     ppi: "PPI 生产者价格指数"
@@ -85,11 +92,19 @@ fred:
     retail_sales: "零售销售额"
     industrial_production: "工业生产指数"
     housing_starts: "新屋开工"
+    ppi_final_demand: "PPI 最终需求"
+    core_ppi: "核心 PPI"
+    avg_hourly_earnings: "平均时薪"
+    trade_balance: "贸易差额"
+    m2_money_supply: "M2 货币供应量"
+    capacity_utilization: "产能利用率"
+    dollar_index: "美元指数"
   # 日频数据需要转月均
   daily_series:
     - treasury_10y
     - treasury_2y
     - yield_spread
+    - dollar_index
   # 周频数据转月均
   weekly_series:
     - initial_claims
@@ -105,6 +120,7 @@ fred:
     - yield_spread
     - labor_participation
     - consumer_sentiment
+    - capacity_utilization
 
 china:
   start_year: 2016
@@ -145,3 +161,15 @@ china:
       func: "macro_china_new_financial_credit"
       label: "新增人民币贷款"
       frequency: "monthly"
+    fx_reserves:
+      func: "macro_china_fx_gold"
+      label: "外汇储备"
+      frequency: "monthly"
+    lpr:
+      func: "macro_china_lpr"
+      label: "LPR 利率"
+      frequency: "monthly"
+    shibor:
+      func: "macro_china_shibor_all"
+      label: "Shibor 利率"
+      frequency: "daily"
