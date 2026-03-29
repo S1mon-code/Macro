@@ -39,4 +39,81 @@ cpi:
     electricity: "电力"
     rent: "租金"
     owners_equivalent_rent: "业主等价租金"
-  start_year: 2020
+  start_year: 2016
+
+fred:
+  api_key: "b4eef119095d53196fccfc9c2a1598b1"
+  base_url: "https://api.stlouisfed.org/fred/series/observations"
+  start_year: 2016
+  series:
+    gdp: "GDPC1"
+    ppi: "PPIACO"
+    unemployment: "UNRATE"
+    nonfarm_payrolls: "PAYEMS"
+    pce: "PCEPI"
+    fed_funds_rate: "FEDFUNDS"
+    treasury_10y: "DGS10"
+    treasury_2y: "DGS2"
+    yield_spread: "T10Y2Y"
+    consumer_sentiment: "UMCSENT"
+    retail_sales: "RSAFS"
+  labels:
+    gdp: "实际 GDP"
+    ppi: "PPI 生产者价格指数"
+    unemployment: "失业率"
+    nonfarm_payrolls: "非农就业人数"
+    pce: "PCE 价格指数"
+    fed_funds_rate: "联邦基金利率"
+    treasury_10y: "10年期国债收益率"
+    treasury_2y: "2年期国债收益率"
+    yield_spread: "10Y-2Y 利差"
+    consumer_sentiment: "消费者信心指数"
+    retail_sales: "零售销售额"
+  # 日频数据需要转月均
+  daily_series:
+    - treasury_10y
+    - treasury_2y
+    - yield_spread
+  # 季度数据
+  quarterly_series:
+    - gdp
+
+china:
+  start_year: 2016
+  indicators:
+    gdp:
+      func: "macro_china_gdp"
+      label: "GDP"
+      frequency: "quarterly"
+    cpi:
+      func: "macro_china_cpi"
+      label: "CPI"
+      frequency: "monthly"
+    ppi:
+      func: "macro_china_ppi"
+      label: "PPI"
+      frequency: "monthly"
+    pmi:
+      func: "macro_china_pmi"
+      label: "PMI"
+      frequency: "monthly"
+    money_supply:
+      func: "macro_china_money_supply"
+      label: "货币供应"
+      frequency: "monthly"
+    trade:
+      func: "macro_china_hgjck"
+      label: "进出口贸易"
+      frequency: "monthly"
+    industrial:
+      func: "macro_china_gyzjz"
+      label: "工业增加值"
+      frequency: "monthly"
+    retail:
+      func: "macro_china_consumer_goods_retail"
+      label: "社会消费品零售"
+      frequency: "monthly"
+    credit:
+      func: "macro_china_new_financial_credit"
+      label: "新增人民币贷款"
+      frequency: "monthly"

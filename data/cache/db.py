@@ -24,6 +24,27 @@ class CacheDB:
                 PRIMARY KEY (series_id, date)
             )
         """)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS fred_us (
+                series_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                value REAL,
+                yoy_pct REAL,
+                mom_pct REAL,
+                PRIMARY KEY (series_id, date)
+            )
+        """)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS china_macro (
+                indicator TEXT NOT NULL,
+                date TEXT NOT NULL,
+                value REAL,
+                yoy_pct REAL,
+                mom_pct REAL,
+                extra TEXT,
+                PRIMARY KEY (indicator, date)
+            )
+        """)
         self.conn.commit()
 
     def save(self, table: str, df: pd.DataFrame):
@@ -48,9 +69,10 @@ class CacheDB:
     def load(self, table: str, series_id: str | None = None) -> pd.DataFrame:
         """从缓存加载数据"""
         try:
+            id_col = "indicator" if table == "china_macro" else "series_id"
             if series_id:
                 df = pd.read_sql(
-                    f"SELECT * FROM {table} WHERE series_id = ? ORDER BY date",
+                    f"SELECT * FROM {table} WHERE {id_col} = ? ORDER BY date",
                     self.conn,
                     params=[series_id],
                 )

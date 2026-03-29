@@ -57,8 +57,6 @@ def generate_cpi_report(use_cache: bool = False):
         ("CPI 总指数环比变化", builder.mom_bar("all_items", last_n=12)),
         ("CPI 各分项最新同比对比", builder.components_latest_yoy(available_components)),
         ("CPI 指数绝对值走势", builder.index_value_trend(["all_items", "core"])),
-        ("CPI 总指数趋势预测", builder.forecast("all_items", months_ahead=3)),
-        ("核心 CPI 趋势预测", builder.forecast("core", months_ahead=3)),
     ]
     print(f"  已生成 {len(chart_configs)} 张图表")
 

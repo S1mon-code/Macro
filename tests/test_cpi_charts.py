@@ -83,8 +83,3 @@ class TestCPIChartBuilder:
         fig = builder.components_latest_yoy(["food", "energy", "shelter"])
         assert fig is not None
 
-    def test_forecast_chart(self, sample_data):
-        builder = CPIChartBuilder(sample_data, labels=LABELS)
-        fig = builder.forecast("all_items", months_ahead=3)
-        assert fig is not None
-        assert len(fig.data) >= 2
