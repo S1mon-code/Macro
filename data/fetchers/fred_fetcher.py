@@ -23,6 +23,7 @@ class FREDFetcher:
         self.labels = fred_config["labels"]
         self.start_year = fred_config.get("start_year", 2016)
         self.daily_series = fred_config.get("daily_series", [])
+        self.weekly_series = fred_config.get("weekly_series", [])
         self.quarterly_series = fred_config.get("quarterly_series", [])
 
     def fetch_series(
@@ -82,8 +83,8 @@ class FREDFetcher:
                     result[name] = df
                     continue
 
-                # 日频数据转月均
-                if name in self.daily_series:
+                # 日频/周频数据转月均
+                if name in self.daily_series or name in self.weekly_series:
                     df = self._to_monthly(df)
 
                 # 计算同比/环比

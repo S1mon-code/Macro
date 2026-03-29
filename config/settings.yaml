@@ -50,30 +50,43 @@ fred:
     ppi: "PPIACO"
     unemployment: "UNRATE"
     nonfarm_payrolls: "PAYEMS"
+    initial_claims: "ICSA"
+    labor_participation: "CIVPART"
     pce: "PCEPI"
+    core_pce: "PCEPILFE"
     fed_funds_rate: "FEDFUNDS"
     treasury_10y: "DGS10"
     treasury_2y: "DGS2"
     yield_spread: "T10Y2Y"
     consumer_sentiment: "UMCSENT"
     retail_sales: "RSAFS"
+    industrial_production: "INDPRO"
+    housing_starts: "HOUST"
   labels:
     gdp: "实际 GDP"
     ppi: "PPI 生产者价格指数"
     unemployment: "失业率"
     nonfarm_payrolls: "非农就业人数"
+    initial_claims: "初请失业金人数"
+    labor_participation: "劳动参与率"
     pce: "PCE 价格指数"
+    core_pce: "核心 PCE 价格指数"
     fed_funds_rate: "联邦基金利率"
     treasury_10y: "10年期国债收益率"
     treasury_2y: "2年期国债收益率"
     yield_spread: "10Y-2Y 利差"
-    consumer_sentiment: "消费者信心指数"
+    consumer_sentiment: "密歇根消费者信心指数"
     retail_sales: "零售销售额"
+    industrial_production: "工业生产指数"
+    housing_starts: "新屋开工"
   # 日频数据需要转月均
   daily_series:
     - treasury_10y
     - treasury_2y
     - yield_spread
+  # 周频数据转月均
+  weekly_series:
+    - initial_claims
   # 季度数据
   quarterly_series:
     - gdp

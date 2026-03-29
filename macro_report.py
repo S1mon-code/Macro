@@ -188,23 +188,28 @@ def generate_macro_report(use_cache: bool = False):
          "html": _chart_html(macro_builder.dual_axis(
              "ppi", y1_col="value", y2_col="yoy_pct",
              title="PPI 指数与同比变化", y1_label="指数值", y2_label="同比 (%)"))},
-        {"title": "PCE 价格指数走势",
-         "html": _chart_html(macro_builder.dual_axis(
-             "pce", y1_col="value", y2_col="yoy_pct",
-             title="PCE 指数与同比变化", y1_label="指数值", y2_label="同比 (%)"))},
+        {"title": "PCE vs 核心 PCE 同比",
+         "html": _chart_html(macro_builder.multi_line(
+             [("pce", "yoy_pct", "PCE 同比"), ("core_pce", "yoy_pct", "核心 PCE 同比")],
+             title="PCE 价格指数同比变化 (%)", y_label="同比 (%)"))},
     ]
     us_subsections.append({"title": "PPI & PCE", "charts": ppi_pce_charts})
 
     # 2.3 就业市场
     employment_charts = [
         {"title": "失业率趋势",
+         "html": _chart_html(macro_builder.multi_line(
+             [("unemployment", "value", "失业率"),
+              ("labor_participation", "value", "劳动参与率")],
+             title="美国失业率 & 劳动参与率 (%)", y_label="%"))},
+        {"title": "非农就业人数",
+         "html": _chart_html(macro_builder.dual_axis(
+             "nonfarm_payrolls", y1_col="value", y2_col="mom_pct",
+             title="非农就业人数与环比变化", y1_label="千人", y2_label="环比 (%)"))},
+        {"title": "初请失业金人数",
          "html": _chart_html(macro_builder.line_trend(
-             ["unemployment"], y_col="value",
-             title="美国失业率 (%)", y_label="失业率 (%)"))},
-        {"title": "非农就业人数变化",
-         "html": _chart_html(macro_builder.bar_chart(
-             "nonfarm_payrolls", y_col="mom_pct", last_n=24,
-             title="非农就业环比变化 (%)"))},
+             ["initial_claims"], y_col="value",
+             title="初请失业金人数（月均）", y_label="人数"))},
     ]
     us_subsections.append({"title": "就业市场", "charts": employment_charts})
 
@@ -247,6 +252,19 @@ def generate_macro_report(use_cache: bool = False):
              title="密歇根大学消费者信心指数", y_label="指数"))},
     ]
     us_subsections.append({"title": "消费 & 零售", "charts": consumer_charts})
+
+    # 2.7 工业 & 房地产
+    industry_charts = [
+        {"title": "工业生产指数",
+         "html": _chart_html(macro_builder.dual_axis(
+             "industrial_production", y1_col="value", y2_col="yoy_pct",
+             title="工业生产指数与同比变化", y1_label="指数", y2_label="同比 (%)"))},
+        {"title": "新屋开工",
+         "html": _chart_html(macro_builder.line_trend(
+             ["housing_starts"], y_col="value",
+             title="新屋开工（千套）", y_label="千套"))},
+    ]
+    us_subsections.append({"title": "工业 & 房地产", "charts": industry_charts})
 
     sections.append({"title": "美国宏观数据", "subsections": us_subsections})
 
@@ -344,9 +362,15 @@ def generate_macro_report(use_cache: bool = False):
     print("\n[5/6] 构建摘要数据...")
     us_keys = [
         ("all_items", "yoy_pct"), ("core", "yoy_pct"),
-        ("unemployment", "value"), ("gdp", "yoy_pct"),
+        ("pce", "yoy_pct"), ("core_pce", "yoy_pct"),
+        ("ppi", "yoy_pct"),
+        ("unemployment", "value"), ("nonfarm_payrolls", "value"),
+        ("labor_participation", "value"), ("initial_claims", "value"),
+        ("gdp", "yoy_pct"),
         ("fed_funds_rate", "value"), ("treasury_10y", "value"),
-        ("ppi", "yoy_pct"), ("pce", "yoy_pct"),
+        ("treasury_2y", "value"), ("yield_spread", "value"),
+        ("consumer_sentiment", "value"), ("retail_sales", "yoy_pct"),
+        ("industrial_production", "yoy_pct"), ("housing_starts", "value"),
     ]
     us_summary = _build_summary({**cpi_data, **fred_data}, us_keys, all_labels)
 

@@ -322,9 +322,9 @@
                                 {% for item in us_summary %}
                                 <tr>
                                     <td>{{ item.label }}</td>
-                                    <td>{{ item.value }}</td>
+                                    <td>{{ "%.3f"|format(item.value) if item.value < 100 else "%.1f"|format(item.value) }}</td>
                                     <td class="{{ 'positive' if item.yoy > 0 else 'negative' }}">
-                                        {{ "%.2f"|format(item.yoy) }}%
+                                        {{ "%.3f"|format(item.yoy) }}%
                                     </td>
                                     <td>{{ item.period }}</td>
                                 </tr>
@@ -349,9 +349,9 @@
                                 {% for item in china_summary %}
                                 <tr>
                                     <td>{{ item.label }}</td>
-                                    <td>{{ item.value }}</td>
+                                    <td>{{ "%.3f"|format(item.value) if item.value < 100 else "%.1f"|format(item.value) }}</td>
                                     <td class="{{ 'positive' if item.yoy > 0 else 'negative' }}">
-                                        {{ "%.2f"|format(item.yoy) }}%
+                                        {{ "%.3f"|format(item.yoy) }}%
                                     </td>
                                     <td>{{ item.period }}</td>
                                 </tr>
