@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
+import pandas as pd
 from dotenv import load_dotenv
 load_dotenv()  # 加载 .env 文件中的 API keys
 
@@ -47,6 +48,40 @@ from analysis.macro_forecast import MacroForecastMatrix
 def _chart_html(fig) -> str:
     """将 Plotly Figure 转为嵌入 HTML 片段"""
     return pio.to_html(fig, full_html=False, include_plotlyjs=False)
+
+
+def _add_forecast_markers(fig, forecast_date, markers: list):
+    """在 Plotly 图表上添加预测标注点。
+
+    markers: [{"label": "我们", "value": 3.0, "color": "#50c4ed"},
+              {"label": "GS共识", "value": 3.3, "color": "#f5a623"}]
+    """
+    import plotly.graph_objects as go
+    for m in markers:
+        # 添加散点
+        fig.add_trace(go.Scatter(
+            x=[forecast_date],
+            y=[m["value"]],
+            mode="markers+text",
+            name=m["label"],
+            marker=dict(size=12, color=m["color"], symbol="diamond"),
+            text=[f"{m['label']}: {m['value']}"],
+            textposition="top center",
+            textfont=dict(size=10, color=m["color"]),
+            showlegend=True,
+        ))
+        # 添加水平虚线
+        fig.add_hline(
+            y=m["value"],
+            line_dash="dot",
+            line_color=m["color"],
+            opacity=0.5,
+            annotation_text=f"{m['label']} {m['value']}",
+            annotation_position="right",
+            annotation_font_color=m["color"],
+            annotation_font_size=10,
+        )
+    return fig
 
 
 def _build_summary(
@@ -405,9 +440,23 @@ def generate_macro_report(use_cache: bool = False):
     us_subsections.append({"title": "经济周期 & 衰退概率", "charts": cycle_recession_charts})
 
     # --- 通胀深度分析 (REPLACES "CPI & 通胀") ---
+    # CPI YoY 图 + 预测标注
+    cpi_yoy_fig = cpi_builder.yoy_trend(["all_items", "core"])
+    if cpi_forecast and "error" not in cpi_forecast and consensus:
+        _ai = cpi_data.get("all_items")
+        forecast_date = (pd.to_datetime(_ai.sort_values("date")["date"]).max() + pd.DateOffset(months=1)) if _ai is not None and not _ai.empty else None
+        if forecast_date:
+            cpi_markers = [
+                {"label": "🔵我们预测", "value": cpi_forecast.get("headline_yoy_forecast", 0), "color": "#50c4ed"},
+            ]
+            post_shock = consensus.get("cpi_march", {}).get("post_shock_consensus", {})
+            if post_shock.get("headline_yoy"):
+                cpi_markers.append({"label": "🟠机构共识", "value": post_shock["headline_yoy"], "color": "#f5a623"})
+            _add_forecast_markers(cpi_yoy_fig, forecast_date, cpi_markers)
+
     cpi_charts = [
-        {"title": "CPI 同比趋势（总指数 vs 核心）",
-         "html": _chart_html(cpi_builder.yoy_trend(["all_items", "core"]))},
+        {"title": "CPI 同比趋势（总指数 vs 核心）+ 3月预测",
+         "html": _chart_html(cpi_yoy_fig)},
         {"title": "CPI 同比趋势（主要分项）",
          "html": _chart_html(cpi_builder.yoy_trend(avail_cpi))},
         {"title": "CPI 总指数环比变化",
@@ -446,12 +495,20 @@ def generate_macro_report(use_cache: bool = False):
     us_subsections.append({"title": "PPI & PCE", "charts": ppi_pce_charts})
 
     # 2.3 就业市场 (UPGRADED with new charts)
+    # 失业率图 + 预测标注
+    ue_fig = macro_builder.multi_line(
+        [("unemployment", "value", "失业率"),
+         ("labor_participation", "value", "劳动参与率")],
+        title="美国失业率 & 劳动参与率 (%)", y_label="%")
+    if macro_forecasts and forecast_date:
+        ue_fc = next((f for f in macro_forecasts.get("us_forecasts", []) if "失业率" in f.get("indicator", "")), None)
+        if ue_fc and ue_fc.get("forecast"):
+            _add_forecast_markers(ue_fig, forecast_date, [
+                {"label": "🔵预测", "value": ue_fc["forecast"], "color": "#50c4ed"},
+            ])
     employment_charts = [
-        {"title": "失业率趋势",
-         "html": _chart_html(macro_builder.multi_line(
-             [("unemployment", "value", "失业率"),
-              ("labor_participation", "value", "劳动参与率")],
-             title="美国失业率 & 劳动参与率 (%)", y_label="%"))},
+        {"title": "失业率趋势 + 预测",
+         "html": _chart_html(ue_fig)},
         {"title": "非农就业人数",
          "html": _chart_html(macro_builder.dual_axis(
              "nonfarm_payrolls", y1_col="value", y2_col="mom_pct",
@@ -496,11 +553,23 @@ def generate_macro_report(use_cache: bool = False):
     us_subsections.append({"title": "GDP & 经济增长", "charts": gdp_charts})
 
     # 2.5 利率 & 国债收益率
+    # 联邦基金利率 + Taylor Rule 预测 + 点阵图
+    fed_fig = macro_builder.line_trend(
+        ["fed_funds_rate"], y_col="value",
+        title="联邦基金利率 (%)", y_label="%")
+    if consensus and forecast_date:
+        fed_markers = []
+        fed_fc = next((f for f in macro_forecasts.get("us_forecasts", []) if "联邦基金利率" in f.get("indicator", "")), None) if macro_forecasts else None
+        if fed_fc and fed_fc.get("forecast"):
+            fed_markers.append({"label": "🔵Taylor Rule", "value": fed_fc["forecast"], "color": "#50c4ed"})
+        dot_median = consensus.get("fed", {}).get("dot_plot_yearend_median")
+        if dot_median:
+            fed_markers.append({"label": "🟠点阵图中位", "value": dot_median, "color": "#f5a623"})
+        if fed_markers:
+            _add_forecast_markers(fed_fig, forecast_date, fed_markers)
     rates_charts = [
-        {"title": "联邦基金利率",
-         "html": _chart_html(macro_builder.line_trend(
-             ["fed_funds_rate"], y_col="value",
-             title="联邦基金利率 (%)", y_label="%"))},
+        {"title": "联邦基金利率 + 预测",
+         "html": _chart_html(fed_fig)},
         {"title": "10年期 vs 2年期国债收益率",
          "html": _chart_html(macro_builder.multi_line(
              [("treasury_10y", "value", "10年期国债"),
