@@ -333,15 +333,6 @@ def generate_macro_report(use_cache: bool = False):
     ]
     us_subsections.append({"title": "贸易 & 货币", "charts": trade_money_charts})
 
-    # 2.9 美元指数
-    dollar_charts = [
-        {"title": "美元指数走势",
-         "html": _chart_html(macro_builder.line_trend(
-             ["dollar_index"], y_col="value",
-             title="美元指数 (DTWEXBGS)", y_label="指数"))},
-    ]
-    us_subsections.append({"title": "美元指数", "charts": dollar_charts})
-
     sections.append({"title": "美国宏观数据", "subsections": us_subsections})
 
     # ── Section 2: 中国宏观数据 ──
@@ -484,7 +475,6 @@ def generate_macro_report(use_cache: bool = False):
         ("ppi_final_demand", "yoy_pct"), ("core_ppi", "yoy_pct"),
         ("avg_hourly_earnings", "yoy_pct"), ("trade_balance", "value"),
         ("m2_money_supply", "yoy_pct"), ("capacity_utilization", "value"),
-        ("dollar_index", "value"),
     ]
     us_summary = _build_summary({**cpi_data, **fred_data}, us_keys, all_labels, us_rate_keys)
 

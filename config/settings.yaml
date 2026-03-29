@@ -71,7 +71,6 @@ fred:
     trade_balance: "BOPGSTB"
     m2_money_supply: "M2SL"
     capacity_utilization: "TCU"
-    dollar_index: "DTWEXBGS"
   labels:
     gdp: "实际 GDP"
     ppi: "PPI 生产者价格指数"
@@ -98,13 +97,11 @@ fred:
     trade_balance: "贸易差额"
     m2_money_supply: "M2 货币供应量"
     capacity_utilization: "产能利用率"
-    dollar_index: "美元指数"
   # 日频数据需要转月均
   daily_series:
     - treasury_10y
     - treasury_2y
     - yield_spread
-    - dollar_index
   # 周频数据转月均
   weekly_series:
     - initial_claims
