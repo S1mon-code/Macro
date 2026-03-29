@@ -24,6 +24,8 @@ from analysis.inflation import InflationAnalyzer
 from analysis.labor import LaborDashboard
 from analysis.china_credit import ChinaCreditPulse
 from analysis.context import HistoricalContext
+from analysis.regime import MacroRegime
+from analysis.scorecard import AssetScorecard
 
 
 def _chart_html(fig) -> str:
@@ -238,6 +240,28 @@ def generate_macro_report(use_cache: bool = False):
     cn_context = historical_context.compute_batch(cn_context_keys)
     context_data = {**us_context, **cn_context}
     print(f"  历史上下文: {len(context_data)} 个指标")
+
+    # 宏观环境定位 (增长×通胀四象限)
+    regime = MacroRegime()
+    regime_us = regime.assess_us(combined_us_data)
+    regime_china = regime.assess_china(china_data, us_regime=regime_us)
+    print(f"  美国象限: {regime_us['quadrant_cn']} (增长={regime_us['growth_score']:.2f}, 通胀={regime_us['inflation_score']:.2f})")
+    print(f"  中国象限: {regime_china['quadrant_cn']} (增长={regime_china['growth_score']:.2f}, 通胀={regime_china['inflation_score']:.2f})")
+
+    # 资产评分卡
+    scorecard = AssetScorecard()
+    asset_scores = scorecard.score_all(
+        us_data=combined_us_data,
+        china_data=china_data,
+        regime_us=regime_us,
+        regime_china=regime_china,
+        recession_data=recession_composite,
+        credit_pulse=credit_pulse,
+        labor_data=labor_analysis,
+    )
+    print(f"  资产评分: {len(asset_scores)} 个标的")
+    for key, val in asset_scores.items():
+        print(f"    {val['name']}: {val['score']:+.3f} ({val['signal']})")
 
     # ── 5. 构建所有标签映射 ──
     all_labels = {}
@@ -669,6 +693,9 @@ def generate_macro_report(use_cache: bool = False):
         labor_analysis=labor_analysis,
         credit_pulse=credit_pulse,
         context_data=context_data,
+        regime_us=regime_us,
+        regime_china=regime_china,
+        asset_scores=asset_scores,
     )
 
     html_path = output_dir / "macro_report.html"

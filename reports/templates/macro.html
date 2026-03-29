@@ -494,6 +494,116 @@
             transform: translateX(-50%);
         }
 
+        /* ── Forecast Dashboard ── */
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .forecast-card {
+            background: #111;
+            border: 1px solid #1a1a2e;
+            border-radius: 10px;
+            padding: 16px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .forecast-card:hover { border-color: #e94560; }
+        .forecast-card .fc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .forecast-card .fc-name { font-size: 14px; font-weight: 600; color: #ccc; }
+        .forecast-card .fc-score {
+            font-size: 24px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+        .forecast-card .fc-score.bullish { color: #16c79a; }
+        .forecast-card .fc-score.bearish { color: #e94560; }
+        .forecast-card .fc-score.neutral { color: #f5a623; }
+        .forecast-card .fc-signal { font-size: 12px; margin-top: 4px; }
+        .forecast-card .fc-bar {
+            height: 6px;
+            background: #1a1a2e;
+            border-radius: 3px;
+            margin-top: 8px;
+            position: relative;
+            overflow: visible;
+        }
+        .forecast-card .fc-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            position: absolute;
+            top: 0;
+        }
+        .forecast-card .fc-bar-center {
+            position: absolute;
+            left: 50%;
+            top: -2px;
+            width: 1px;
+            height: 10px;
+            background: #555;
+        }
+
+        /* ── Regime Quadrant ── */
+        .regime-container {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .regime-box {
+            flex: 1;
+            min-width: 280px;
+            background: #111;
+            border: 1px solid #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .regime-box .regime-label { font-size: 13px; color: #888; }
+        .regime-box .regime-name { font-size: 28px; font-weight: 700; margin: 8px 0; }
+        .regime-box .regime-name.green { color: #16c79a; }
+        .regime-box .regime-name.red { color: #e94560; }
+        .regime-box .regime-name.orange { color: #f5a623; }
+        .regime-box .regime-name.blue { color: #50c4ed; }
+        .regime-box .regime-assets { font-size: 12px; color: #888; margin-top: 8px; }
+        .regime-scores {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 12px;
+        }
+        .regime-scores .rs-item { text-align: center; }
+        .regime-scores .rs-value { font-size: 18px; font-weight: 600; color: #ccc; }
+        .regime-scores .rs-label { font-size: 11px; color: #666; }
+
+        /* ── Factor Detail Modal ── */
+        .factor-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 12px;
+        }
+        .factor-table th {
+            background: #1a1a2e;
+            color: #e94560;
+            padding: 8px 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .factor-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #0d0d20;
+        }
+        .factor-table .score-pos { color: #16c79a; }
+        .factor-table .score-neg { color: #e94560; }
+        .factor-table .score-neu { color: #f5a623; }
+
         /* ── Responsive ── */
         @media (max-width: 960px) {
             .sidebar { display: none; }
@@ -513,6 +623,12 @@
         {% endif %}
         {% if recession_data %}
         <a href="#recession-prob" class="sub-link">衰退概率</a>
+        {% endif %}
+        {% if asset_scores %}
+        <a href="#forecast-dashboard" class="section-link">资产方向预测</a>
+        {% endif %}
+        {% if regime_us %}
+        <a href="#macro-regime" class="sub-link">宏观象限</a>
         {% endif %}
         {% for section in sections %}
         {% set sec_idx = loop.index %}
@@ -644,6 +760,89 @@
                 </div>
             </div>
             {% endif %}
+
+            <!-- Macro Regime -->
+            {% if regime_us %}
+            <div id="macro-regime" class="section">
+                <h2>宏观环境定位</h2>
+                <div class="regime-container">
+                    <div class="regime-box">
+                        <div class="regime-label">美国宏观象限</div>
+                        <div class="regime-name {{ regime_us.color }}">{{ regime_us.quadrant_cn }}</div>
+                        <div class="regime-scores">
+                            <div class="rs-item">
+                                <div class="rs-value">{{ "%.2f"|format(regime_us.growth_score) }}</div>
+                                <div class="rs-label">增长得分</div>
+                            </div>
+                            <div class="rs-item">
+                                <div class="rs-value">{{ "%.2f"|format(regime_us.inflation_score) }}</div>
+                                <div class="rs-label">通胀得分</div>
+                            </div>
+                        </div>
+                        <div class="regime-assets">{{ regime_us.assets }}</div>
+                    </div>
+                    {% if regime_china %}
+                    <div class="regime-box">
+                        <div class="regime-label">中国宏观象限</div>
+                        <div class="regime-name {{ regime_china.color }}">{{ regime_china.quadrant_cn }}</div>
+                        <div class="regime-scores">
+                            <div class="rs-item">
+                                <div class="rs-value">{{ "%.2f"|format(regime_china.growth_score) }}</div>
+                                <div class="rs-label">增长得分</div>
+                            </div>
+                            <div class="rs-item">
+                                <div class="rs-value">{{ "%.2f"|format(regime_china.inflation_score) }}</div>
+                                <div class="rs-label">通胀得分</div>
+                            </div>
+                        </div>
+                        <div class="regime-assets">{{ regime_china.assets }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Asset Forecast Dashboard -->
+            {% if asset_scores %}
+            <div id="forecast-dashboard" class="section">
+                <h2>资产方向预测</h2>
+                <div class="forecast-grid">
+                    {% for key, asset in asset_scores.items() %}
+                    <div class="forecast-card" onclick="showFactors('{{ key }}')">
+                        <div class="fc-header">
+                            <span class="fc-name">{{ asset.name }}</span>
+                            <span class="fc-score {{ 'bullish' if asset.score > 0.2 else ('bearish' if asset.score < -0.2 else 'neutral') }}">
+                                {{ "%+.2f"|format(asset.score) }}
+                            </span>
+                        </div>
+                        <div class="fc-signal" style="color: {{ '#16c79a' if asset.color == 'green' else ('#e94560' if asset.color == 'red' else '#f5a623') }}">
+                            {{ asset.signal }}
+                        </div>
+                        <div class="fc-bar">
+                            <div class="fc-bar-center"></div>
+                            {% set bar_pct = ((asset.score + 1) / 2 * 100) %}
+                            {% if asset.score >= 0 %}
+                            <div class="fc-bar-fill" style="left:50%; width:{{ (bar_pct - 50)|abs }}%; background:#16c79a;"></div>
+                            {% else %}
+                            <div class="fc-bar-fill" style="left:{{ bar_pct }}%; width:{{ (50 - bar_pct)|abs }}%; background:#e94560;"></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Factor Detail Modal -->
+            <div class="modal-overlay" id="factorModal" onclick="if(event.target===this)closeFactorModal()">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3 id="factorModalTitle">因子详情</h3>
+                        <button class="modal-close" onclick="closeFactorModal()">&times;</button>
+                    </div>
+                    <div class="modal-body" id="factorModalBody"></div>
+                </div>
+            </div>
 
             <!-- Dynamic Sections -->
             {% for section in sections %}
@@ -796,7 +995,87 @@
     }
 
     // ESC 关闭
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') { closeModal(); closeFactorModal(); }
+    });
+
+    // ── Asset Factor Detail ──
+    {% if asset_scores %}
+    const assetScores = {{ asset_scores | tojson }};
+    {% else %}
+    const assetScores = {};
+    {% endif %}
+
+    function showFactors(key) {
+        const asset = assetScores[key];
+        if (!asset) return;
+        document.getElementById('factorModalTitle').textContent = asset.name + ' — 因子评分明细';
+        const body = document.getElementById('factorModalBody');
+        while (body.firstChild) body.removeChild(body.firstChild);
+
+        // Score summary
+        const summary = document.createElement('div');
+        summary.style.cssText = 'padding:20px 24px;text-align:center;border-bottom:1px solid #1a1a2e';
+        const scoreEl = document.createElement('div');
+        scoreEl.style.cssText = 'font-size:36px;font-weight:700';
+        scoreEl.style.color = asset.score > 0.2 ? '#16c79a' : (asset.score < -0.2 ? '#e94560' : '#f5a623');
+        scoreEl.textContent = (asset.score >= 0 ? '+' : '') + asset.score.toFixed(3);
+        summary.appendChild(scoreEl);
+        const sigEl = document.createElement('div');
+        sigEl.style.cssText = 'font-size:14px;color:#888;margin-top:4px';
+        sigEl.textContent = asset.signal;
+        summary.appendChild(sigEl);
+        body.appendChild(summary);
+
+        // Factor table
+        const table = document.createElement('table');
+        table.className = 'factor-table';
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        ['因子', '当前值', '得分', '权重', '加权得分'].forEach(function(text) {
+            const th = document.createElement('th');
+            th.textContent = text;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        (asset.factors || []).forEach(function(f) {
+            const tr = document.createElement('tr');
+            const tdName = document.createElement('td');
+            tdName.textContent = f.name;
+            tr.appendChild(tdName);
+
+            const tdVal = document.createElement('td');
+            tdVal.textContent = f.raw_value !== null && f.raw_value !== undefined ? f.raw_value.toFixed(4) : '\u2014';
+            tr.appendChild(tdVal);
+
+            const tdScore = document.createElement('td');
+            tdScore.textContent = f.score > 0 ? '+' + f.score : f.score.toString();
+            tdScore.className = f.score > 0 ? 'score-pos' : (f.score < 0 ? 'score-neg' : 'score-neu');
+            tr.appendChild(tdScore);
+
+            const tdWeight = document.createElement('td');
+            tdWeight.textContent = (f.weight * 100).toFixed(0) + '%';
+            tr.appendChild(tdWeight);
+
+            const tdWS = document.createElement('td');
+            tdWS.textContent = f.weighted_score.toFixed(4);
+            tdWS.className = f.weighted_score > 0 ? 'score-pos' : (f.weighted_score < 0 ? 'score-neg' : 'score-neu');
+            tr.appendChild(tdWS);
+
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        body.appendChild(table);
+
+        document.getElementById('factorModal').classList.add('active');
+    }
+
+    function closeFactorModal() {
+        document.getElementById('factorModal').classList.remove('active');
+    }
     </script>
 
 </body>
