@@ -1,0 +1,42 @@
+bls:
+  api_key: ""  # 从 https://data.bls.gov/registrationEngine/ 免费注册获取
+  base_url: "https://api.bls.gov/publicAPI/v2/timeseries/data/"
+
+cpi:
+  series:
+    all_items: "CUSR0000SA0"
+    core: "CUSR0000SA0L1E"
+    food: "CUSR0000SAF1"
+    energy: "CUSR0000SA0E"
+    shelter: "CUSR0000SAH1"
+    transportation: "CUSR0000SAT"
+    medical: "CUSR0000SAM"
+    apparel: "CUSR0000SAA"
+    recreation: "CUSR0000SAR"
+    education_communication: "CUSR0000SAE"
+    other: "CUSR0000SAG"
+    food_at_home: "CUSR0000SAF11"
+    food_away: "CUSR0000SAFV"
+    gasoline: "CUSR0000SETB01"
+    electricity: "CUSR0000SEHF01"
+    rent: "CUSR0000SEHA02"
+    owners_equivalent_rent: "CUSR0000SEHC01"
+  labels:
+    all_items: "CPI 总指数"
+    core: "核心 CPI（除食品能源）"
+    food: "食品"
+    energy: "能源"
+    shelter: "住房"
+    transportation: "交通"
+    medical: "医疗"
+    apparel: "服装"
+    recreation: "娱乐"
+    education_communication: "教育与通信"
+    other: "其他商品与服务"
+    food_at_home: "家庭食品"
+    food_away: "在外餐饮"
+    gasoline: "汽油"
+    electricity: "电力"
+    rent: "租金"
+    owners_equivalent_rent: "业主等价租金"
+  start_year: 2020
