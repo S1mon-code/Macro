@@ -17,6 +17,7 @@ from jinja2 import Environment, FileSystemLoader
 from data.fetchers.bls_fetcher import BLSFetcher
 from data.fetchers.fred_fetcher import FREDFetcher
 from data.fetchers.akshare_fetcher import AKShareFetcher
+from data.fetchers.polymarket_fetcher import PolymarketFetcher
 from data.cache.db import CacheDB
 from charts.cpi_charts import CPIChartBuilder
 from charts.macro_charts import MacroChartBuilder
@@ -305,6 +306,19 @@ def generate_macro_report(use_cache: bool = False):
         fwd = val["score"]
         arrow = "↑" if fwd > cur + 0.05 else ("↓" if fwd < cur - 0.05 else "→")
         print(f"    {val['name']}: {cur:+.3f} → {fwd:+.3f} {arrow} ({val['signal']})")
+
+    # ── Polymarket 预测市场数据 ──
+    # Polymarket 预测市场数据
+    print("\n  获取 Polymarket 预测市场数据...")
+    try:
+        poly = PolymarketFetcher()
+        polymarket_data = poly.fetch_all()
+        print(f"  Polymarket: {len(polymarket_data)} 个市场")
+        for key, mkt in polymarket_data.items():
+            print(f"    {mkt['summary']}")
+    except Exception as e:
+        print(f"  Polymarket: 获取失败 ({e})")
+        polymarket_data = {}
 
     # ── 5. 构建所有标签映射 ──
     all_labels = {}
@@ -755,6 +769,7 @@ def generate_macro_report(use_cache: bool = False):
         macro_forecasts=macro_forecasts,
         forward_asset_scores=forward_asset_scores,
         data_freshness=data_freshness,
+        polymarket_data=polymarket_data,
     )
 
     html_path = output_dir / "macro_report.html"

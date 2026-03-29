@@ -26,7 +26,8 @@ class TestFREDFetcher:
     def test_init_loads_config(self):
         fetcher = FREDFetcher(config_path="config/settings.yaml")
         assert fetcher.base_url == "https://api.stlouisfed.org/fred/series/observations"
-        assert fetcher.api_key == "b4eef119095d53196fccfc9c2a1598b1"
+        # API key now from env var or settings (may be empty in test)
+        assert isinstance(fetcher.api_key, str)
         assert "gdp" in fetcher.series
         assert "treasury_10y" in fetcher.daily_series
         assert "gdp" in fetcher.quarterly_series

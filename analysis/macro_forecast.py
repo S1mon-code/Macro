@@ -1,19 +1,16 @@
-"""宏观预测矩阵 — 回归驱动的前瞻性宏观预测引擎
+"""宏观预测矩阵 — 前瞻性宏观预测引擎
 
-核心创新：每个预测系数来自对系统内实际历史数据的OLS回归，
-而非硬编码假设。当数据不足时，退回加权趋势并明确标注。
-
-回归方法论：
-- NFP: ΔNonfarm(t) = α + β₁×ΔInitialClaims(t-1) + β₂×ΔJOLTS(t-2)
-- 失业率: UE(t) = α + β₁×Claims_4wAvg(t-1) + β₂×JOLTS_VU(t-2)
-- 消费者信心: Sentiment(t) = α + β₁×GasPrice(t) + β₂×Unemployment(t)
-- 联邦基金利率: Taylor Rule (r*, output gap 均从数据回归)
-- 零售销售: RetailYoY(t) = α + β₁×Sentiment(t-1) + β₂×WageYoY(t-2)
-- 中国PMI: PMI(t) = α + β₁×CreditImpulse(t-3) + β₂×PMI(t-1)
-- 中国CPI: CPI_YoY(t) = α + β₁×PPI_YoY(t-2) + β₂×M2_YoY(t-6)
+方法论（诚实简单优先，R²<0.15的回归一律退回趋势）：
+- NFP: 3月加权均值 + 初请失业金方向性调整（回归R²太低，不使用）
+- 失业率: OLS回归 Claims_4wAvg(t-1) + JOLTS V/U(t-2)，V/U用失业人数计算
+- 消费者信心: OLS回归 GasPrice(t) + Unemployment(t)
+- 联邦基金利率: Taylor Rule (r*=0.5标准值, NAIRU=4.0% CBO估计, Okun=2.0)
+- 零售销售: 加权3月趋势（自相关性强，无需回归）
+- 中国PMI: AR(1) + 动量 + 信贷扩张/收缩调整（回归R²太低，不使用）
+- 中国CPI: PPI(t-2)成本传导回归，R²<0.15时退回加权趋势（不使用M2）
 - CPI: 外部 CPIForecaster 自下而上分项预测
 
-所有回归使用 np.linalg.lstsq，无 sklearn 依赖。
+OLS回归使用 np.linalg.lstsq，无 sklearn 依赖。
 """
 
 import pandas as pd
@@ -83,19 +80,19 @@ class MacroForecastMatrix:
         # 1. CPI (from external CPIForecaster if available)
         us_forecasts.append(self._format_cpi_forecast(cpi_forecast, us_data))
 
-        # 2. NFP (regression: claims + JOLTS)
+        # 2. NFP (3-month weighted avg + claims adjustment)
         us_forecasts.append(self._forecast_nfp(us_data))
 
         # 3. Unemployment (regression: claims + V/U ratio)
         us_forecasts.append(self._forecast_unemployment(us_data))
 
-        # 4. Fed Funds Rate (data-driven Taylor Rule)
+        # 4. Fed Funds Rate (Taylor Rule: r*=0.5, NAIRU=4.0)
         us_forecasts.append(self._forecast_fed_rate(us_data))
 
         # 5. Consumer Sentiment (regression: gas + unemployment)
         us_forecasts.append(self._forecast_consumer_sentiment(us_data))
 
-        # 6. Retail Sales YoY (regression: sentiment + wage growth)
+        # 6. Retail Sales YoY (weighted 3-month trend)
         us_forecasts.append(self._forecast_retail_sales(us_data))
 
         # 7. Industrial Production YoY (trend fallback)
@@ -116,10 +113,10 @@ class MacroForecastMatrix:
         # ── China Forecasts ──
         china_forecasts = []
 
-        # 1. PMI (regression: credit impulse + AR(1))
+        # 1. PMI (AR(1) + momentum + credit adjustment)
         china_forecasts.append(self._forecast_china_pmi(china_data))
 
-        # 2. CPI YoY (regression: PPI lead + M2 lead)
+        # 2. CPI YoY (PPI cost-push regression or weighted trend)
         china_forecasts.append(self._forecast_china_cpi(china_data))
 
         # 3. PPI YoY (trend fallback)
@@ -428,12 +425,10 @@ class MacroForecastMatrix:
     # ══════════════════════════════════════════════════════════════
 
     def _forecast_nfp(self, data: dict) -> dict:
-        """Forecast NFP monthly change via regression.
+        """Forecast NFP monthly change using weighted trend + claims adjustment.
 
-        ΔNonfarm(t) = α + β₁×InitialClaims(t-1) + β₂×JOLTS(t-2) + ε
-
-        InitialClaims is expected to have a negative coefficient
-        (rising claims → lower NFP growth).
+        方法: 3月加权均值(近期权重更高) + 初请失业金趋势方向性调整。
+        NFP本身难以精确回归预测，采用诚实简单的方法。
         """
         nfp_df = data.get("nonfarm_payrolls")
 
@@ -442,57 +437,81 @@ class MacroForecastMatrix:
                 "indicator": "非农就业 (千人变化)",
                 "current": None, "forecast": None,
                 "direction": "N/A", "change": None,
-                "confidence": "低", "r_squared": None,
+                "confidence": "中", "r_squared": None,
                 "coefficients": [],
                 "method": "无数据", "driver": "",
             }
 
-        # Compute monthly change (diff) as our y variable
+        # Compute monthly change (diff)
         nfp_sorted = nfp_df.sort_values("date").copy()
         nfp_sorted["value"] = pd.to_numeric(
             nfp_sorted["value"], errors="coerce"
         )
-        nfp_sorted["nfp_change"] = nfp_sorted["value"].diff()
-        nfp_diff = nfp_sorted.dropna(subset=["nfp_change"]).copy()
+        changes = nfp_sorted["value"].diff().dropna()
 
+        if len(changes) < 3:
+            return {
+                "indicator": "非农就业 (千人变化)",
+                "current": None, "forecast": None,
+                "direction": "N/A", "change": None,
+                "confidence": "中", "r_squared": None,
+                "coefficients": [],
+                "method": "数据不足", "driver": "",
+            }
+
+        current_change = float(changes.iloc[-1])
+
+        # 3-month weighted average (more recent = higher weight)
+        recent_3 = changes.tail(3).values
+        weights = np.array([1.0, 2.0, 3.0])  # oldest=1, newest=3
+        weighted_avg = float(np.average(recent_3, weights=weights))
+
+        # Directional adjustment from initial claims trend
+        claims_adjustment = 1.0  # neutral
+        claims_driver = ""
         claims_df = data.get("initial_claims")
-        jolts_df = data.get("jolts_openings")
-
-        x_dfs = []
         if claims_df is not None and not claims_df.empty:
-            x_dfs.append((claims_df, "value", "初请失业金", 1))
-        if jolts_df is not None and not jolts_df.empty:
-            x_dfs.append((jolts_df, "value", "JOLTS职位空缺", 2))
-
-        result = self._fit_and_predict(
-            y_df=nfp_diff,
-            x_dfs=x_dfs,
-            y_col="nfp_change",
-            name="NFP月度变化",
-        )
-
-        # If regression failed, try simple 3-month average fallback
-        if result["forecast"] is None or result["r_squared"] is None:
-            vals = pd.to_numeric(
-                nfp_sorted["value"], errors="coerce"
+            claims_vals = pd.to_numeric(
+                claims_df.sort_values("date")["value"], errors="coerce"
             ).dropna()
-            if len(vals) >= 4:
-                changes = vals.diff().dropna()
-                current_change = float(changes.iloc[-1])
-                avg_3m = float(changes.tail(3).mean())
-                result = {
-                    "current": round(current_change, 0),
-                    "forecast": round(avg_3m, 0),
-                    "direction": "增长" if avg_3m > 0 else "收缩",
-                    "change": round(avg_3m - current_change, 0),
-                    "confidence": "低",
-                    "r_squared": None,
-                    "coefficients": [],
-                    "method": "3月均值外推 (回归数据不足)",
-                    "driver": f"3月均值: {avg_3m:.0f}K",
-                }
+            if len(claims_vals) >= 6:
+                recent_claims = float(claims_vals.tail(3).mean())
+                prior_claims = float(claims_vals.iloc[-6:-3].mean())
+                if prior_claims > 0:
+                    claims_change_pct = ((recent_claims / prior_claims) - 1) * 100
+                    if claims_change_pct > 10:
+                        # Claims rising >10% -> reduce NFP forecast by 15%
+                        claims_adjustment = 0.85
+                        claims_driver = f"初请上升{claims_change_pct:+.1f}%->下调15%"
+                    elif claims_change_pct < -10:
+                        # Claims falling >10% -> increase NFP forecast by 10%
+                        claims_adjustment = 1.10
+                        claims_driver = f"初请下降{claims_change_pct:+.1f}%->上调10%"
+                    else:
+                        claims_driver = f"初请变化{claims_change_pct:+.1f}%->无调整"
 
-        result["indicator"] = "非农就业 (千人变化)"
+        forecast = round(weighted_avg * claims_adjustment, 0)
+        change = round(forecast - current_change, 0)
+        direction = "增长" if forecast > 0 else "收缩"
+
+        method = "3月加权均值 + 初请失业金方向性调整"
+        if claims_driver:
+            method += f" ({claims_driver})"
+
+        result = {
+            "indicator": "非农就业 (千人变化)",
+            "current": round(current_change, 0),
+            "forecast": forecast,
+            "direction": direction,
+            "change": change,
+            "confidence": "中",
+            "r_squared": None,
+            "coefficients": [],
+            "method": method,
+            "driver": f"3月加权均值: {weighted_avg:.0f}K" + (
+                f", {claims_driver}" if claims_driver else ""
+            ),
+        }
         return result
 
     def _forecast_unemployment(self, data: dict) -> dict:
@@ -547,9 +566,13 @@ class MacroForecastMatrix:
                 merged = j_sorted[["_date_m", "_j"]].merge(
                     u_sorted[["_date_m", "_u"]], on="_date_m"
                 )
-                # V/U ratio: vacancies / unemployment rate
-                # (higher ratio = tighter labor market = lower unemployment ahead)
-                merged["vu_ratio"] = merged["_j"] / merged["_u"].replace(0, np.nan)
+                # V/U ratio: JOLTS openings (thousands) / unemployed count proxy
+                # Both JOLTS and unemployed count should be in comparable units (thousands)
+                # Since we only have unemployment rate here, convert to approx unemployed count
+                # using civilian labor force ~ 168,000 thousand (approximate)
+                labor_force_k = 168000.0  # approximate civilian labor force in thousands
+                unemployed_count = merged["_u"] * labor_force_k / 100.0  # rate -> count in thousands
+                merged["vu_ratio"] = merged["_j"] / unemployed_count.replace(0, np.nan)
                 merged = merged.dropna(subset=["vu_ratio"])
 
                 if len(merged) >= self.MIN_OBS_TREND:
@@ -620,52 +643,24 @@ class MacroForecastMatrix:
         ).dropna()
         current_rate = float(fed_vals.iloc[-1])
 
-        # ── Compute r* from actual data (avg real rate over last 10 years) ──
-        r_star = 0.5  # default
+        # ── r* = 0.5 (standard estimate, not computed from data that includes zero-rate era) ──
+        r_star = 0.5
         pi = 2.5  # default core PCE
 
         if pce_df is not None and not pce_df.empty and "yoy_pct" in pce_df.columns:
             pce_sorted = pce_df.sort_values("date").copy()
-            pce_sorted["_date_m"] = pd.to_datetime(
-                pce_sorted["date"], errors="coerce"
-            ).dt.to_period("M")
             pce_sorted["_pce"] = pd.to_numeric(
                 pce_sorted["yoy_pct"], errors="coerce"
             )
-            pce_sorted = pce_sorted.dropna(subset=["_date_m", "_pce"])
-            pce_sorted = pce_sorted.drop_duplicates(
-                subset=["_date_m"], keep="last"
-            ).set_index("_date_m")
+            pce_sorted = pce_sorted.dropna(subset=["_pce"])
 
             if len(pce_sorted) > 0:
                 pi = float(pce_sorted["_pce"].iloc[-1])
 
-            # Align fed rate and PCE to compute real rate
-            fed_m = fed_sorted.copy()
-            fed_m["_date_m"] = pd.to_datetime(
-                fed_m["date"], errors="coerce"
-            ).dt.to_period("M")
-            fed_m["_fed"] = pd.to_numeric(fed_m["value"], errors="coerce")
-            fed_m = fed_m.dropna(subset=["_date_m", "_fed"])
-            fed_m = fed_m.drop_duplicates(
-                subset=["_date_m"], keep="last"
-            ).set_index("_date_m")
-
-            # Last 10 years (120 months)
-            common_idx = fed_m.index.intersection(pce_sorted.index)
-            if len(common_idx) >= 24:
-                common_idx = common_idx.sort_values()
-                recent_idx = common_idx[-120:]  # up to 10 years
-                real_rates = (
-                    fed_m.loc[recent_idx, "_fed"].values
-                    - pce_sorted.loc[recent_idx, "_pce"].values
-                )
-                r_star = float(np.mean(real_rates))
-
-        # ── Compute NAIRU (min unemployment in last 5 years) ──
-        nairu = 4.0  # default
+        # ── NAIRU = 4.0 (standard CBO estimate), Okun coefficient = 2.0 (standard) ──
+        nairu = 4.0
         output_gap = 0.0
-        okun_coeff = 2.0  # default Okun's coefficient
+        okun_coeff = 2.0
 
         if ue_df is not None and not ue_df.empty:
             ue_vals = pd.to_numeric(
@@ -673,18 +668,6 @@ class MacroForecastMatrix:
             ).dropna()
             if len(ue_vals) > 0:
                 current_ue = float(ue_vals.iloc[-1])
-                # NAIRU ~ min UE in last 5 years (60 months)
-                nairu = float(ue_vals.tail(60).min())
-
-                # Try to regress Okun's coefficient from GDP data
-                if gdp_df is not None and not gdp_df.empty and "yoy_pct" in gdp_df.columns:
-                    try:
-                        okun_coeff = self._estimate_okun_coefficient(
-                            ue_df, gdp_df
-                        )
-                    except Exception:
-                        okun_coeff = 2.0
-
                 output_gap = -(current_ue - nairu) * okun_coeff
 
         # ── Taylor Rule ──
@@ -732,9 +715,9 @@ class MacroForecastMatrix:
             "r_squared": None,  # Taylor Rule is structural, not fitted
             "coefficients": coefficients,
             "method": (
-                f"数据驱动Taylor Rule: "
-                f"r*={r_star:.2f}(10年均值), π={pi:.2f}%, "
-                f"NAIRU={nairu:.2f}%(5年最低UE), Okun={okun_coeff:.2f}, "
+                f"Taylor Rule: "
+                f"r*={r_star:.2f}(标准估计), π={pi:.2f}%, "
+                f"NAIRU={nairu:.2f}%(CBO标准), Okun={okun_coeff:.2f}, "
                 f"OutputGap={output_gap:.2f}"
             ),
             "driver": driver,
@@ -848,10 +831,10 @@ class MacroForecastMatrix:
         return result
 
     def _forecast_retail_sales(self, data: dict) -> dict:
-        """Forecast retail sales YoY via regression.
+        """Forecast retail sales YoY using weighted 3-month trend.
 
-        RetailSales_YoY(t) = α + β₁×ConsumerSentiment(t-1)
-                               + β₂×WageGrowth_YoY(t-2) + ε
+        方法: 零售销售有较强的自相关性，直接用加权3月趋势。
+        无需回归 -- 简单但诚实。
         """
         retail_df = data.get("retail_sales")
 
@@ -860,41 +843,67 @@ class MacroForecastMatrix:
                 "indicator": "零售销售 YoY (%)",
                 "current": None, "forecast": None,
                 "direction": "N/A", "change": None,
-                "confidence": "低", "r_squared": None,
+                "confidence": "中", "r_squared": None,
                 "coefficients": [],
                 "method": "无数据", "driver": "",
             }
 
-        cs_df = data.get("consumer_sentiment")
-        wage_df = data.get("avg_hourly_earnings")
+        sorted_df = retail_df.sort_values("date")
+        if "yoy_pct" not in sorted_df.columns:
+            return {
+                "indicator": "零售销售 YoY (%)",
+                "current": None, "forecast": None,
+                "direction": "N/A", "change": None,
+                "confidence": "中", "r_squared": None,
+                "coefficients": [],
+                "method": "缺少yoy_pct列", "driver": "",
+            }
 
-        x_dfs = []
-        if cs_df is not None and not cs_df.empty:
-            x_dfs.append((cs_df, "value", "消费者信心", 1))
-        if wage_df is not None and not wage_df.empty and "yoy_pct" in wage_df.columns:
-            x_dfs.append((wage_df, "yoy_pct", "工资增速YoY", 2))
+        vals = pd.to_numeric(sorted_df["yoy_pct"], errors="coerce").dropna()
+        if len(vals) < 4:
+            return {
+                "indicator": "零售销售 YoY (%)",
+                "current": None, "forecast": None,
+                "direction": "N/A", "change": None,
+                "confidence": "中", "r_squared": None,
+                "coefficients": [],
+                "method": "数据不足", "driver": "",
+            }
 
-        result = self._fit_and_predict(
-            y_df=retail_df,
-            x_dfs=x_dfs,
-            y_col="yoy_pct",
-            name="零售销售YoY",
+        current = float(vals.iloc[-1])
+
+        # Weighted 3-month trend (more recent = higher weight)
+        recent = vals.tail(3)
+        weights = np.arange(1, len(recent) + 1, dtype=float)
+        forecast = float(np.average(recent, weights=weights))
+
+        direction = "上升" if forecast > current + 0.05 else (
+            "下降" if forecast < current - 0.05 else "持平"
         )
 
-        result["indicator"] = "零售销售 YoY (%)"
-        return result
+        return {
+            "indicator": "零售销售 YoY (%)",
+            "current": round(current, 3),
+            "forecast": round(forecast, 3),
+            "direction": direction,
+            "change": round(forecast - current, 3),
+            "confidence": "中",
+            "r_squared": None,
+            "coefficients": [],
+            "method": "加权3月趋势外推 (零售销售自相关性强，无需回归)",
+            "driver": f"近3月加权趋势: {forecast:.2f}%",
+        }
 
     # ══════════════════════════════════════════════════════════════
     # China Forecasting Methods (Regression-Based)
     # ══════════════════════════════════════════════════════════════
 
     def _forecast_china_pmi(self, china_data: dict) -> dict:
-        """Forecast China PMI via regression.
+        """Forecast China PMI using AR(1) with momentum and credit adjustment.
 
-        PMI(t) = α + β₁×CreditImpulse(t-3) + β₂×PMI(t-1) + ε
-
-        Credit impulse = new loans rolling 12m YoY change.
-        AR(1) component captures PMI's own momentum.
+        方法: PMI(t) = PMI(t-1) + momentum_adjustment + credit_adjustment
+        - momentum = weighted average of last 3 months' changes
+        - credit: if 3M avg > 6M avg of new loans, add +0.3; if contraction, -0.3
         """
         pmi_df = china_data.get("pmi_manufacturing")
 
@@ -903,97 +912,95 @@ class MacroForecastMatrix:
                 "indicator": "制造业 PMI",
                 "current": None, "forecast": None,
                 "direction": "N/A", "change": None,
-                "confidence": "低", "r_squared": None,
+                "confidence": "中", "r_squared": None,
                 "coefficients": [],
                 "method": "无数据", "driver": "",
             }
 
-        credit_df = china_data.get("credit")
+        pmi_sorted = pmi_df.sort_values("date").copy()
+        pmi_sorted["value"] = pd.to_numeric(pmi_sorted["value"], errors="coerce")
+        pmi_vals = pmi_sorted["value"].dropna()
 
-        # Build credit impulse (rolling 12m sum YoY change)
-        credit_impulse_df = None
+        if len(pmi_vals) < 4:
+            return {
+                "indicator": "制造业 PMI",
+                "current": None, "forecast": None,
+                "direction": "N/A", "change": None,
+                "confidence": "中", "r_squared": None,
+                "coefficients": [],
+                "method": "数据不足", "driver": "",
+            }
+
+        current_pmi = float(pmi_vals.iloc[-1])
+
+        # Momentum: weighted average of last 3 months' changes
+        pmi_changes = pmi_vals.diff().dropna()
+        if len(pmi_changes) >= 3:
+            recent_changes = pmi_changes.tail(3).values
+            weights = np.array([1.0, 2.0, 3.0])
+            momentum = float(np.average(recent_changes, weights=weights))
+        elif len(pmi_changes) >= 1:
+            momentum = float(pmi_changes.iloc[-1])
+        else:
+            momentum = 0.0
+
+        # Credit adjustment
+        credit_adj = 0.0
+        credit_driver = ""
+        credit_df = china_data.get("credit")
         if credit_df is not None and not credit_df.empty:
             try:
                 c_sorted = credit_df.sort_values("date").copy()
-                c_sorted["value"] = pd.to_numeric(
-                    c_sorted["value"], errors="coerce"
-                )
-                c_sorted = c_sorted.dropna(subset=["value"])
-                c_sorted["date"] = pd.to_datetime(
-                    c_sorted["date"], errors="coerce"
-                )
-                c_sorted = c_sorted.set_index("date").sort_index()
-
-                # Rolling 12-month sum
-                c_sorted["rolling_12m"] = c_sorted["value"].rolling(
-                    12, min_periods=12
-                ).sum()
-                # YoY change of rolling 12m sum
-                c_sorted["credit_impulse"] = c_sorted["rolling_12m"].pct_change(12) * 100
-                c_sorted = c_sorted.dropna(subset=["credit_impulse"])
-
-                if len(c_sorted) >= self.MIN_OBS_TREND:
-                    credit_impulse_df = c_sorted.reset_index()[
-                        ["date", "credit_impulse"]
-                    ].rename(columns={"credit_impulse": "value"})
+                c_sorted["value"] = pd.to_numeric(c_sorted["value"], errors="coerce")
+                c_vals = c_sorted["value"].dropna()
+                if len(c_vals) >= 6:
+                    avg_3m = float(c_vals.tail(3).mean())
+                    avg_6m = float(c_vals.tail(6).mean())
+                    if avg_6m > 0:
+                        if avg_3m > avg_6m:
+                            credit_adj = 0.3
+                            credit_driver = "信贷扩张(3M>6M均值)->+0.3"
+                        else:
+                            credit_adj = -0.3
+                            credit_driver = "信贷收缩(3M<6M均值)->-0.3"
             except Exception:
-                credit_impulse_df = None
+                pass
 
-        # Build PMI lagged 1 month (AR component)
-        pmi_lag_df = None
-        try:
-            pmi_sorted = pmi_df.sort_values("date").copy()
-            pmi_sorted["date"] = pd.to_datetime(
-                pmi_sorted["date"], errors="coerce"
-            )
-            pmi_sorted["value"] = pd.to_numeric(
-                pmi_sorted["value"], errors="coerce"
-            )
-            pmi_sorted = pmi_sorted.dropna(subset=["date", "value"])
+        # AR(1) forecast
+        forecast = current_pmi + momentum + credit_adj
+        # Clamp to reasonable range
+        forecast = round(max(44.0, min(56.0, forecast)), 1)
 
-            if len(pmi_sorted) >= self.MIN_OBS_TREND:
-                # Create lagged version: shift value forward by 1 month
-                # so PMI(t-1) aligns with PMI(t)
-                pmi_lag = pmi_sorted.copy()
-                pmi_lag_df = pmi_lag  # lag handled by _fit_and_predict
-        except Exception:
-            pmi_lag_df = None
-
-        x_dfs = []
-        if credit_impulse_df is not None and not credit_impulse_df.empty:
-            x_dfs.append((credit_impulse_df, "value", "信贷脉冲(12mYoY)", 3))
-        if pmi_lag_df is not None and not pmi_lag_df.empty:
-            x_dfs.append((pmi_lag_df, "value", "PMI滞后1月(AR)", 1))
-
-        result = self._fit_and_predict(
-            y_df=pmi_df,
-            x_dfs=x_dfs,
-            y_col="value",
-            name="制造业PMI",
+        change = round(forecast - current_pmi, 1)
+        direction = (
+            "改善" if forecast > current_pmi + 0.1
+            else ("恶化" if forecast < current_pmi - 0.1 else "持平")
         )
 
-        # Clamp PMI to reasonable range
-        if result["forecast"] is not None:
-            result["forecast"] = round(
-                max(44.0, min(56.0, result["forecast"])), 1
-            )
-            current = result["current"] or 50.0
-            result["change"] = round(result["forecast"] - current, 1)
-            result["direction"] = (
-                "改善" if result["forecast"] > current + 0.1
-                else ("恶化" if result["forecast"] < current - 0.1 else "持平")
-            )
+        method = f"AR(1) + 动量调整({momentum:+.2f}) + 信贷调整({credit_adj:+.1f})"
+        driver = f"动量: {momentum:+.2f}"
+        if credit_driver:
+            driver += f", {credit_driver}"
 
-        result["indicator"] = "制造业 PMI"
-        return result
+        return {
+            "indicator": "制造业 PMI",
+            "current": round(current_pmi, 1),
+            "forecast": forecast,
+            "direction": direction,
+            "change": change,
+            "confidence": "中",
+            "r_squared": None,
+            "coefficients": [],
+            "method": method,
+            "driver": driver,
+        }
 
     def _forecast_china_cpi(self, china_data: dict) -> dict:
-        """Forecast China CPI YoY via regression.
+        """Forecast China CPI YoY using PPI(t-2) as leading indicator.
 
-        CPI_YoY(t) = α + β₁×PPI_YoY(t-2) + β₂×M2_YoY(t-6) + ε
-
-        PPI leads CPI by ~2 months (cost-push transmission).
-        M2 leads CPI by ~6 months (monetary transmission).
+        CPI_YoY_forecast = alpha + beta * PPI_YoY(t-2)
+        PPI leads CPI by ~2 months via cost-push channel (more reliable than M2).
+        If R-squared < 0.15, fall back to weighted trend.
         """
         cpi_df = china_data.get("cpi")
 
@@ -1008,23 +1015,71 @@ class MacroForecastMatrix:
             }
 
         ppi_df = china_data.get("ppi")
-        m2_df = china_data.get("m2")
 
-        x_dfs = []
+        # Try PPI(t-2) regression only (no M2 -- wrong sign issue)
         if ppi_df is not None and not ppi_df.empty and "yoy_pct" in ppi_df.columns:
-            x_dfs.append((ppi_df, "yoy_pct", "PPI YoY(领先2月)", 2))
-        if m2_df is not None and not m2_df.empty and "yoy_pct" in m2_df.columns:
-            x_dfs.append((m2_df, "yoy_pct", "M2 YoY(领先6月)", 6))
+            x_dfs = [(ppi_df, "yoy_pct", "PPI YoY(领先2月)", 2)]
 
-        result = self._fit_and_predict(
-            y_df=cpi_df,
-            x_dfs=x_dfs,
-            y_col="yoy_pct",
-            name="中国CPI YoY",
+            result = self._fit_and_predict(
+                y_df=cpi_df,
+                x_dfs=x_dfs,
+                y_col="yoy_pct",
+                name="中国CPI YoY",
+            )
+
+            # If R-squared >= 0.15, use regression result
+            if result.get("r_squared") is not None and result["r_squared"] >= 0.15:
+                result["indicator"] = "CPI YoY (%)"
+                result["method"] = (
+                    f"PPI成本传导回归: CPI_YoY = α + β×PPI_YoY(t-2) "
+                    f"(R²={result['r_squared']:.3f})"
+                )
+                return result
+
+        # Fallback: weighted trend of CPI YoY itself
+        cpi_sorted = cpi_df.sort_values("date")
+        if "yoy_pct" not in cpi_sorted.columns:
+            return {
+                "indicator": "CPI YoY (%)",
+                "current": None, "forecast": None,
+                "direction": "N/A", "change": None,
+                "confidence": "低", "r_squared": None,
+                "coefficients": [],
+                "method": "缺少yoy_pct列", "driver": "",
+            }
+
+        vals = pd.to_numeric(cpi_sorted["yoy_pct"], errors="coerce").dropna()
+        if len(vals) < 4:
+            return {
+                "indicator": "CPI YoY (%)",
+                "current": None, "forecast": None,
+                "direction": "N/A", "change": None,
+                "confidence": "低", "r_squared": None,
+                "coefficients": [],
+                "method": "数据不足", "driver": "",
+            }
+
+        current = float(vals.iloc[-1])
+        recent = vals.tail(3)
+        weights = np.arange(1, len(recent) + 1, dtype=float)
+        forecast = float(np.average(recent, weights=weights))
+
+        direction = "上升" if forecast > current + 0.05 else (
+            "下降" if forecast < current - 0.05 else "持平"
         )
 
-        result["indicator"] = "CPI YoY (%)"
-        return result
+        return {
+            "indicator": "CPI YoY (%)",
+            "current": round(current, 3),
+            "forecast": round(forecast, 3),
+            "direction": direction,
+            "change": round(forecast - current, 3),
+            "confidence": "低",
+            "r_squared": None,
+            "coefficients": [],
+            "method": "加权3月趋势外推 (PPI回归R²<0.15，退回趋势)",
+            "driver": f"近期CPI YoY趋势{direction}",
+        }
 
     # ══════════════════════════════════════════════════════════════
     # Generic Trend Fallback

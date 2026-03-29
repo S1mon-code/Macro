@@ -675,6 +675,7 @@
     <nav class="sidebar">
         <div class="sidebar-title">目录导航</div>
         <a href="#exec-summary" class="section-link">执行摘要</a>
+        {% if polymarket_data %}<a href="#polymarket" class="section-link">Polymarket 共识</a>{% endif %}
         {% if asset_scores %}
         <a href="#forecast-dashboard" class="section-link">资产方向预测</a>
         {% endif %}
@@ -768,6 +769,27 @@
                     {% endif %}
                 </div>
             </div>
+
+            <!-- Polymarket Prediction Market Consensus -->
+            {% if polymarket_data %}
+            <div id="polymarket" class="section">
+                <h2>Polymarket 预测市场共识</h2>
+                <div class="dashboard-grid">
+                    {% for key, mkt in polymarket_data.items() %}
+                    <div class="signal-card">
+                        <div class="signal-info">
+                            <div class="signal-name">{{ mkt.title }}</div>
+                            {% for outcome in mkt.outcomes[:3] %}
+                            <div class="signal-value" style="color:{{ '#16c79a' if outcome.probability_pct > 60 else ('#e94560' if outcome.probability_pct < 30 else '#f5a623') }}">
+                                {{ outcome.name }}: {{ outcome.probability_pct }}%
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Asset Forecast Dashboard (moved before overview) -->
             {% if asset_scores %}

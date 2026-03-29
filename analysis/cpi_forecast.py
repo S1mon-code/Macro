@@ -280,49 +280,50 @@ class CPIForecaster:
         """
         self._energy_method = "CPI能源历史趋势（无实时油价数据）"
 
-        # 优先使用实时汽油价格数据
+        # 优先使用实时汽油价格数据（已由fetcher转为月度）
         gas_df = fred_data.get("retail_gasoline")
         if gas_df is not None and not gas_df.empty:
             gas_sorted = gas_df.sort_values("date")
             gas_values = pd.to_numeric(gas_sorted["value"], errors="coerce").dropna()
 
-            if len(gas_values) >= 4:
-                # 当月均价 vs 上月均价
-                # 取最近的数据点作为当月，再往前的作为上月
-                current_month_avg = float(gas_values.tail(2).mean())  # 最近2周
-                prior_month_avg = float(gas_values.iloc[-4:-2].mean())  # 前2周
+            if len(gas_values) >= 2:
+                # 月度数据: 最后一行=本月, 倒数第二行=上月
+                current_month = float(gas_values.iloc[-1])
+                prior_month = float(gas_values.iloc[-2])
 
-                if prior_month_avg > 0:
-                    gas_mom_pct = ((current_month_avg / prior_month_avg) - 1) * 100
+                if prior_month > 0:
+                    gas_mom_pct = ((current_month / prior_month) - 1) * 100
 
                     # 汽油占CPI能源约50%，非汽油能源（电力等）假设MoM ~0%
                     # CPI能源MoM ≈ 汽油MoM × 0.50（汽油在能源中的权重）
-                    # 再加电力/天然气的小幅变动
-                    energy_mom = gas_mom_pct * 0.50
+                    # Cap to realistic range: historical CPI energy MoM SA rarely exceeds ±5%
+                    energy_mom = max(-5.0, min(5.0, gas_mom_pct * 0.50))
 
                     self._energy_method = (
-                        f"实时汽油价格: ${current_month_avg:.2f}/gal vs "
-                        f"${prior_month_avg:.2f}/gal ({gas_mom_pct:+.1f}%), "
+                        f"实时汽油价格: ${current_month:.2f}/gal vs "
+                        f"${prior_month:.2f}/gal ({gas_mom_pct:+.1f}%), "
                         f"传导至CPI能源"
                     )
                     return round(energy_mom, 3)
 
-        # 次选：用WTI原油价格推算
+        # 次选：用WTI原油价格推算（也已转为月度）
         oil_df = fred_data.get("wti_crude")
         if oil_df is not None and not oil_df.empty:
             oil_sorted = oil_df.sort_values("date")
             oil_values = pd.to_numeric(oil_sorted["value"], errors="coerce").dropna()
 
-            if len(oil_values) >= 4:
-                current_oil = float(oil_values.tail(2).mean())
-                prior_oil = float(oil_values.iloc[-4:-2].mean())
+            if len(oil_values) >= 2:
+                # 月度数据: 最后一行=本月, 倒数第二行=上月
+                current_oil = float(oil_values.iloc[-1])
+                prior_oil = float(oil_values.iloc[-2])
 
                 if prior_oil > 0:
                     oil_mom_pct = ((current_oil / prior_oil) - 1) * 100
                     # 原油→零售汽油传导系数约0.50（原油占零售价~50%）
                     # 汽油→CPI能源传导系数约0.50（汽油占能源~50%）
                     # 总传导: 0.50 × 0.50 = 0.25
-                    energy_mom = oil_mom_pct * 0.25
+                    # Cap to realistic range: ±5%
+                    energy_mom = max(-5.0, min(5.0, oil_mom_pct * 0.25))
 
                     self._energy_method = (
                         f"WTI原油: ${current_oil:.1f}/bbl vs "
