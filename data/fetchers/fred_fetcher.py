@@ -103,6 +103,23 @@ class FREDFetcher:
                 logger.error(f"Failed to fetch FRED series {name} ({series_id}): {e}")
                 continue
 
+        # 用原始数据计算精确失业率（FRED UNRATE 只有1位小数）
+        if "unemployed_count" in result and "labor_force" in result:
+            try:
+                ue = result["unemployed_count"].copy()
+                lf = result["labor_force"].copy()
+                merged = pd.merge(ue[["date", "value"]], lf[["date", "value"]],
+                                  on="date", suffixes=("_ue", "_lf"))
+                merged["value"] = (merged["value_ue"] / merged["value_lf"]) * 100
+                merged["series_id"] = "UNRATE_PRECISE"
+                merged = merged[["series_id", "date", "value"]].copy()
+                merged = self._compute_changes(merged, rate=True)
+                for col in merged.columns:
+                    merged[col] = merged[col].tolist()
+                result["unemployment"] = merged
+            except Exception as e:
+                logger.warning(f"Failed to compute precise unemployment rate: {e}")
+
         return result
 
     @staticmethod
