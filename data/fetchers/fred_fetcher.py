@@ -113,11 +113,11 @@ class FREDFetcher:
 
         # 1. 精确失业率: UNEMPLOY / CLF16OV (官方 UNRATE 只有1位小数)
         self._precise_ratio(result, "unemployment", "unemployed_count", "labor_force",
-                            "UNRATE_PRECISE", rate=True)
+                            self.series.get("unemployment", "UNRATE"), rate=True)
 
         # 2. 精确劳动参与率: CLF16OV / CNP16OV (官方 CIVPART 只有1位小数)
         self._precise_ratio(result, "labor_participation", "labor_force", "civilian_population",
-                            "CIVPART_PRECISE", rate=True)
+                            self.series.get("labor_participation", "CIVPART"), rate=True)
 
         # 3. 精确 CPI YoY: 从 BLS 的3位小数指数值自行计算 (已在 cpi_data 中处理)
         # 4. 精确 PPI/PCE/Core PCE YoY: 从3位小数指数值自行计算
