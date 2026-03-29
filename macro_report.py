@@ -420,7 +420,7 @@ def generate_macro_report(use_cache: bool = False):
         ("exports", "yoy_pct"), ("industrial", "yoy_pct"),
         ("retail", "yoy_pct"),
     ]
-    cn_rate_keys = {"pmi_manufacturing"}
+    cn_rate_keys = set()
     china_summary = _build_summary(china_data, cn_keys, china_labels, cn_rate_keys)
 
     # ── 7. 渲染 HTML ──
