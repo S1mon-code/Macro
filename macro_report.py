@@ -61,13 +61,33 @@ def _build_summary(
         yoy = float(latest[yoy_col]) if latest.get(yoy_col) is not None else 0
         is_rate = key in rate_keys
 
+        # 构建历史数据（最近5年）用于点击展开
+        history = []
+        for _, row in df_valid.iterrows():
+            d = row.get("date")
+            if d is None:
+                continue
+            if hasattr(d, "strftime"):
+                d_str = d.strftime("%Y-%m")
+            else:
+                d_str = str(d)[:7]
+            h = {
+                "date": d_str,
+                "value": round(float(row.get("value", 0)), 4) if row.get("value") is not None else None,
+                "yoy": round(float(row.get("yoy_pct", 0)), 4) if row.get("yoy_pct") is not None else None,
+                "mom": round(float(row.get("mom_pct", 0)), 4) if row.get("mom_pct") is not None else None,
+            }
+            history.append(h)
+
         summary.append({
             "label": labels.get(key, key),
+            "key": key,
             "value": value,
             "yoy": yoy,
             "period": period,
-            "is_rate": is_rate,  # 比率类标记
+            "is_rate": is_rate,
             "unit": "pp" if is_rate else "%",
+            "history": history,
         })
     return summary
 

@@ -267,6 +267,114 @@
             margin-top: 4px;
         }
 
+        /* ── Clickable rows ── */
+        .summary-table tbody tr {
+            cursor: pointer;
+        }
+        .summary-table tbody tr:hover {
+            background: #1a1a2e !important;
+        }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal {
+            background: #111;
+            border: 1px solid #1a1a2e;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 85vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid #1a1a2e;
+        }
+        .modal-header h3 {
+            color: #e94560;
+            font-size: 18px;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        .modal-close:hover { color: #fff; }
+        .modal-controls {
+            display: flex;
+            gap: 8px;
+            padding: 12px 24px;
+            border-bottom: 1px solid #0d0d20;
+        }
+        .modal-controls button {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            color: #ccc;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .modal-controls button.active {
+            background: #e94560;
+            border-color: #e94560;
+            color: #fff;
+        }
+        .modal-controls button:hover {
+            border-color: #e94560;
+        }
+        .modal-body {
+            overflow-y: auto;
+            padding: 0;
+        }
+        .modal-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .modal-table th {
+            position: sticky;
+            top: 0;
+            background: #1a1a2e;
+            color: #e94560;
+            padding: 10px 16px;
+            text-align: right;
+            font-weight: 600;
+            z-index: 1;
+        }
+        .modal-table th:first-child { text-align: left; }
+        .modal-table td {
+            padding: 8px 16px;
+            text-align: right;
+            border-bottom: 1px solid #0d0d20;
+            font-variant-numeric: tabular-nums;
+        }
+        .modal-table td:first-child {
+            text-align: left;
+            color: #aaa;
+        }
+        .modal-table tbody tr:hover {
+            background: #1a1a2e;
+        }
+
         /* ── Responsive ── */
         @media (max-width: 960px) {
             .sidebar { display: none; }
@@ -320,7 +428,7 @@
                             </thead>
                             <tbody>
                                 {% for item in us_summary %}
-                                <tr>
+                                <tr onclick="showDetail('us', {{ loop.index0 }})">
                                     <td>{{ item.label }}</td>
                                     <td>{{ "%.3f"|format(item.value) if item.value < 1000 else "%.1f"|format(item.value) }}</td>
                                     <td class="{{ 'positive' if item.yoy > 0 else 'negative' }}">
@@ -351,7 +459,7 @@
                             </thead>
                             <tbody>
                                 {% for item in china_summary %}
-                                <tr>
+                                <tr onclick="showDetail('cn', {{ loop.index0 }})">
                                     <td>{{ item.label }}</td>
                                     <td>{{ "%.3f"|format(item.value) if item.value < 1000 else "%.1f"|format(item.value) }}</td>
                                     <td class="{{ 'positive' if item.yoy > 0 else 'negative' }}">
@@ -403,6 +511,124 @@
 
         </div>
     </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="detailModal" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">指标详情</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-controls">
+                <button onclick="setYears(1)" id="btn-1y">1年</button>
+                <button onclick="setYears(2)" id="btn-2y">2年</button>
+                <button onclick="setYears(3)" id="btn-3y" class="active">3年</button>
+                <button onclick="setYears(5)" id="btn-5y">5年</button>
+            </div>
+            <div class="modal-body">
+                <table class="modal-table">
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>数值</th>
+                            <th>同比变化</th>
+                            <th>环比变化</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // 嵌入指标历史数据（由 Jinja2 在服务端安全生成，非用户输入）
+    const indicatorData = {
+        us: {{ us_summary | tojson }},
+        cn: {{ china_summary | tojson }}
+    };
+
+    let currentGroup = null;
+    let currentIdx = null;
+    let currentYears = 3;
+
+    function showDetail(group, idx) {
+        currentGroup = group;
+        currentIdx = idx;
+        const item = indicatorData[group][idx];
+        document.getElementById('modalTitle').textContent = item.label + ' \u2014 \u5386\u53f2\u6570\u636e\u8ddf\u8e2a';
+        renderTable(item, currentYears);
+        document.getElementById('detailModal').classList.add('active');
+        updateButtons();
+    }
+
+    function closeModal() {
+        document.getElementById('detailModal').classList.remove('active');
+    }
+
+    function setYears(y) {
+        currentYears = y;
+        updateButtons();
+        const item = indicatorData[currentGroup][currentIdx];
+        renderTable(item, y);
+    }
+
+    function updateButtons() {
+        [1,2,3,5].forEach(function(y) {
+            const btn = document.getElementById('btn-' + y + 'y');
+            btn.classList.toggle('active', y === currentYears);
+        });
+    }
+
+    function formatNum(val, isRate, prefix) {
+        if (val === null || val === undefined || isNaN(val)) return '\u2014';
+        const s = val.toFixed(4);
+        if (isRate) {
+            return (val >= 0 ? '+' : '') + s + ' pp';
+        }
+        return (prefix && val >= 0 ? '+' : '') + s + '%';
+    }
+
+    function renderTable(item, years) {
+        const history = item.history || [];
+        const months = years * 12;
+        const recent = history.slice(-months).reverse();
+        const isRate = item.is_rate;
+        const tbody = document.getElementById('modalBody');
+
+        // 安全地用 DOM API 构建表格行
+        while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+        for (const row of recent) {
+            const tr = document.createElement('tr');
+
+            const tdDate = document.createElement('td');
+            tdDate.textContent = row.date;
+            tr.appendChild(tdDate);
+
+            const tdVal = document.createElement('td');
+            tdVal.textContent = row.value !== null ? row.value.toFixed(4) : '\u2014';
+            tr.appendChild(tdVal);
+
+            const tdYoy = document.createElement('td');
+            tdYoy.textContent = formatNum(row.yoy, isRate, true);
+            if (row.yoy > 0) tdYoy.className = 'positive';
+            else if (row.yoy < 0) tdYoy.className = 'negative';
+            tr.appendChild(tdYoy);
+
+            const tdMom = document.createElement('td');
+            tdMom.textContent = formatNum(row.mom, isRate, true);
+            if (row.mom > 0) tdMom.className = 'positive';
+            else if (row.mom < 0) tdMom.className = 'negative';
+            tr.appendChild(tdMom);
+
+            tbody.appendChild(tr);
+        }
+    }
+
+    // ESC 关闭
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+    </script>
 
 </body>
 </html>
