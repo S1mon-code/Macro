@@ -695,6 +695,7 @@
         {% if cpi_forecast and cpi_forecast.forecast_month is defined %}
         <a href="#cpi-forecast" class="sub-link">CPI 预测</a>
         {% endif %}
+        {% if consensus %}<a href="#our-vs-consensus" class="section-link">我们 vs 机构</a>{% endif %}
         {% for section in sections %}
         {% set sec_idx = loop.index %}
         <a href="#section-{{ sec_idx }}" class="section-link">{{ section.title }}</a>
@@ -1169,6 +1170,140 @@
                     </div>
                 </div>
                 {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Our Forecast vs Consensus -->
+            {% if consensus %}
+            <div id="our-vs-consensus" class="section">
+                <h2>我们的预测 vs 机构共识</h2>
+
+                <table class="cpi-component-table" style="margin-bottom:24px">
+                    <thead>
+                        <tr>
+                            <th>指标</th>
+                            <th>最新实际值</th>
+                            <th>我们的预测</th>
+                            <th>机构共识</th>
+                            <th>差异</th>
+                            <th>信号</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- CPI -->
+                        {% if cpi_forecast and cpi_forecast.headline_yoy_forecast %}
+                        <tr>
+                            <td style="font-weight:600">CPI YoY (3月)</td>
+                            <td>{{ consensus.feb_actual.cpi_headline_yoy }}%</td>
+                            <td style="color:#50c4ed">{{ "%.2f"|format(cpi_forecast.headline_yoy_forecast) }}%</td>
+                            <td style="color:#f5a623">{{ consensus.cpi_march.post_shock_consensus.headline_yoy }}%</td>
+                            {% set diff = cpi_forecast.headline_yoy_forecast - consensus.cpi_march.post_shock_consensus.headline_yoy %}
+                            <td class="{{ 'positive' if diff > 0 else 'negative' }}">{{ "%+.2f"|format(diff) }}pp</td>
+                            <td style="font-size:11px;color:#888">{{ "我们更鸽" if diff < 0 else "我们更鹰" if diff > 0 else "一致" }}</td>
+                        </tr>
+                        {% endif %}
+
+                        <!-- Core CPI -->
+                        {% if cpi_forecast and cpi_forecast.core_yoy_forecast %}
+                        <tr>
+                            <td style="font-weight:600">核心 CPI YoY (3月)</td>
+                            <td>{{ consensus.feb_actual.cpi_core_yoy }}%</td>
+                            <td style="color:#50c4ed">{{ "%.2f"|format(cpi_forecast.core_yoy_forecast) }}%</td>
+                            <td style="color:#f5a623">{{ consensus.cpi_march.post_shock_consensus.core_yoy }}%</td>
+                            {% set diff2 = cpi_forecast.core_yoy_forecast - consensus.cpi_march.post_shock_consensus.core_yoy %}
+                            <td class="{{ 'positive' if diff2 > 0 else 'negative' }}">{{ "%+.2f"|format(diff2) }}pp</td>
+                            <td style="font-size:11px;color:#888">{{ "我们更鸽" if diff2 < 0 else "我们更鹰" if diff2 > 0 else "一致" }}</td>
+                        </tr>
+                        {% endif %}
+
+                        <!-- Fed Rate -->
+                        <tr>
+                            <td style="font-weight:600">联邦基金利率 (年末)</td>
+                            <td>{{ consensus.fed.current_rate }}%</td>
+                            {% if macro_forecasts and macro_forecasts.us_forecasts %}
+                            {% set fed_fc = namespace(val='—') %}
+                            {% for f in macro_forecasts.us_forecasts if f.indicator == '联邦基金利率 (%)' %}
+                            {% set fed_fc.val = f.forecast %}
+                            {% endfor %}
+                            <td style="color:#50c4ed">{{ fed_fc.val }}%</td>
+                            {% else %}
+                            <td>—</td>
+                            {% endif %}
+                            <td style="color:#f5a623">{{ consensus.fed.dot_plot_yearend_median }}%</td>
+                            <td>—</td>
+                            <td style="font-size:11px;color:#888">点阵图中位数 {{ consensus.fed.dot_plot_yearend_median }}%</td>
+                        </tr>
+
+                        <!-- GDP -->
+                        <tr>
+                            <td style="font-weight:600">Q1 2026 GDP (QoQ年化)</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td style="color:#f5a623">{{ consensus.gdp.q1_2026_gdpnow }}%</td>
+                            <td>—</td>
+                            <td style="font-size:11px;color:#888">Atlanta Fed GDPNow ({{ consensus.gdp.q1_trend }})</td>
+                        </tr>
+
+                        <!-- Recession -->
+                        {% if recession_data and recession_data.probability is defined %}
+                        <tr>
+                            <td style="font-weight:600">衰退概率</td>
+                            <td>—</td>
+                            <td style="color:#50c4ed">{{ "%.1f"|format(recession_data.probability) }}%</td>
+                            <td style="color:#f5a623">{{ consensus.polymarket_snapshot.recession_2026 }}%</td>
+                            {% set rdiff = recession_data.probability - consensus.polymarket_snapshot.recession_2026 %}
+                            <td class="{{ 'positive' if rdiff > 0 else 'negative' }}">{{ "%+.1f"|format(rdiff) }}pp</td>
+                            <td style="font-size:11px;color:#888">Polymarket 共识</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+
+                <!-- Asset Targets -->
+                <h3>资产价格：当前 vs 机构目标</h3>
+                <table class="cpi-component-table">
+                    <thead>
+                        <tr>
+                            <th>资产</th>
+                            <th>当前价格</th>
+                            <th>Goldman Sachs</th>
+                            <th>JPMorgan</th>
+                            <th>Morgan Stanley</th>
+                            <th>隐含回报</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="font-weight:600">S&P 500</td>
+                            <td>{{ consensus.market_prices.sp500.current }}</td>
+                            <td>{{ consensus.market_prices.sp500.targets.goldman_sachs }}</td>
+                            <td>{{ consensus.market_prices.sp500.targets.jpmorgan }}</td>
+                            <td>{{ consensus.market_prices.sp500.targets.morgan_stanley }}</td>
+                            {% set sp_upside = ((consensus.market_prices.sp500.targets.goldman_sachs / consensus.market_prices.sp500.current) - 1) * 100 %}
+                            <td class="positive">+{{ "%.0f"|format(sp_upside) }}% (GS)</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight:600">黄金 ($/oz)</td>
+                            <td>${{ consensus.market_prices.gold.current }}</td>
+                            <td>${{ consensus.market_prices.gold.targets.goldman_sachs }}</td>
+                            <td>${{ consensus.market_prices.gold.targets.jpmorgan }}</td>
+                            <td>—</td>
+                            {% set gold_upside = ((consensus.market_prices.gold.targets.goldman_sachs / consensus.market_prices.gold.current) - 1) * 100 %}
+                            <td class="positive">+{{ "%.0f"|format(gold_upside) }}% (GS)</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight:600">WTI 原油 ($/bbl)</td>
+                            <td>${{ consensus.market_prices.oil_wti.current }}</td>
+                            <td colspan="3" style="color:#e94560">美伊冲突前 ${{ consensus.market_prices.oil_wti.pre_iran_level }} → 当前 +{{ consensus.market_prices.oil_wti.change_pct }}%</td>
+                            <td>—</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div style="font-size:11px;color:#555;margin-top:12px">
+                    数据来源: Reuters, Goldman Sachs, JPMorgan, Morgan Stanley, CME FedWatch, Atlanta Fed GDPNow, Polymarket |
+                    共识更新: {{ consensus.last_updated }}
+                </div>
             </div>
             {% endif %}
 

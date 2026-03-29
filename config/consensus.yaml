@@ -1,0 +1,81 @@
+# 机构共识预测 & 当前市场价格
+# 最后更新: 2026-03-29
+# 来源: Reuters, Bloomberg, Goldman Sachs, JPMorgan, Morgan Stanley, CME FedWatch, Atlanta Fed
+
+last_updated: "2026-03-29"
+
+# ── 3月CPI预测（4月10日发布） ──
+cpi_march:
+  # 预油价暴涨前共识
+  pre_shock_consensus:
+    headline_yoy: 2.4
+    core_yoy: 2.5
+    headline_mom: 0.3
+  # 油价暴涨后修正共识
+  post_shock_consensus:
+    headline_yoy: 3.3  # 分析师估计，汽油涨15%→headline 0.9% MoM → ~3.3% YoY
+    headline_mom: 0.9
+    core_yoy: 2.8  # 核心不含能源，影响较小
+    core_mom: 0.4  # 实际2月核心MoM=0.2%，3月预计反弹
+  source: "Reuters poll of 49 forecasters, Seeking Alpha analyst estimates"
+
+# ── 2月实际值（已发布） ──
+feb_actual:
+  cpi_headline_yoy: 2.4
+  cpi_core_yoy: 2.5
+  cpi_headline_mom: 0.3
+  cpi_core_mom: 0.2
+  nfp_change: -92  # 千人
+  unemployment_rate: 4.4
+
+# ── 美联储利率 ──
+fed:
+  current_rate: "3.50-3.75"
+  current_midpoint: 3.625
+  dot_plot_yearend_median: 3.4  # 2026年末点阵图中位数
+  market_pricing: "1次降息 (2026全年)"
+  next_meeting: "2026-05-06"
+  next_meeting_hold_prob: 99  # CME FedWatch: 99%不变
+  june_hold_prob: 86.5
+  source: "FOMC March 2026 dot plot, CME FedWatch"
+
+# ── GDP ──
+gdp:
+  q1_2026_gdpnow: 2.0  # Atlanta Fed GDPNow 3/23更新
+  q1_2026_gdpnow_prev: 2.3  # 3/19
+  q1_trend: "下行"
+  source: "Atlanta Fed GDPNow"
+
+# ── 资产价格 & 机构目标 ──
+market_prices:
+  sp500:
+    current: 5369
+    date: "2026-03-27"
+    targets:
+      goldman_sachs: 7600
+      morgan_stanley: 7800
+      jpmorgan: 7200  # 下调后
+    ytd_change_pct: -7.45  # 过去1个月
+  gold:
+    current: 4434
+    date: "2026-03-27"
+    all_time_high: 5589  # 2026年1月
+    targets:
+      goldman_sachs: 5400
+      jpmorgan: 6300
+      reuters_median: 4747
+    ytd_from_ath_pct: -20.7
+  oil_wti:
+    current: 89  # 约值
+    pre_iran_level: 65
+    change_pct: 37
+
+# ── Polymarket 共识（实时） ──
+# 这些通过 API 自动获取，此处为参考备份
+polymarket_snapshot:
+  recession_2026: 35.5
+  fed_april_hold: 96.7
+  cpi_march_above_2_8: 97.9
+  inflation_2026_above_3: 97.7
+  inflation_2026_above_4: 57.0
+  gold_best_performer_2026: 54.0

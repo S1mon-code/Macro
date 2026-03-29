@@ -8,8 +8,18 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
+import yaml
 from dotenv import load_dotenv
 load_dotenv()  # 加载 .env 文件中的 API keys
+
+
+def _load_consensus() -> dict:
+    """Load consensus forecasts from config/consensus.yaml"""
+    try:
+        with open("config/consensus.yaml", "r") as f:
+            return yaml.safe_load(f)
+    except Exception:
+        return {}
 
 import plotly.io as pio
 from jinja2 import Environment, FileSystemLoader
@@ -319,6 +329,10 @@ def generate_macro_report(use_cache: bool = False):
     except Exception as e:
         print(f"  Polymarket: 获取失败 ({e})")
         polymarket_data = {}
+
+    # ── 共识预测数据 ──
+    consensus = _load_consensus()
+    print(f"  共识数据: 更新于 {consensus.get('last_updated', 'N/A')}")
 
     # ── 5. 构建所有标签映射 ──
     all_labels = {}
@@ -770,6 +784,7 @@ def generate_macro_report(use_cache: bool = False):
         forward_asset_scores=forward_asset_scores,
         data_freshness=data_freshness,
         polymarket_data=polymarket_data,
+        consensus=consensus,
     )
 
     html_path = output_dir / "macro_report.html"
