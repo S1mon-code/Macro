@@ -95,14 +95,15 @@ class CPIForecaster:
             "method": "近3月OER环比均值（趋势外推）+ 新签租金12月滞后",
         })
 
-        # 2. Energy/Gasoline forecast
+        # 2. Energy/Gasoline forecast (uses real-time gas/oil prices)
+        self._energy_method = ""
         energy_forecast = self._forecast_energy(cpi_data, fred_data)
         components.append({
             "name": "能源（汽油为主）",
             "weight": self.WEIGHTS["energy"],
             "mom_forecast": energy_forecast,
             "contribution_bps": round(energy_forecast * self.WEIGHTS["energy"] / 100, 2),
-            "method": "基于近期原油价格变动，传导系数0.50",
+            "method": self._energy_method,
         })
 
         # 3. Food forecast
@@ -269,34 +270,67 @@ class CPIForecaster:
         return 0.30  # default: ~0.3% MoM for OER
 
     def _forecast_energy(self, cpi_data: dict, fred_data: dict) -> float:
-        """Forecast energy MoM based on recent CPI energy readings.
+        """Forecast energy MoM using real-time gasoline prices.
 
-        Energy is highly volatile; uses the mean of the last 3 months.
-        If PPI data is available (proxy for commodity costs), adjusts
-        the forecast via a 0.50 pass-through coefficient.
+        投行方法：用当月实际零售汽油均价 vs 上月均价，算出汽油MoM。
+        汽油占CPI能源权重约50%，非汽油能源（电力、天然气）相对稳定。
+
+        数据源：FRED GASREGW（EIA周度零售汽油价格）
         """
-        # Try to use PPI as a leading indicator for energy
-        ppi_df = fred_data.get("ppi")
-        if ppi_df is not None and not ppi_df.empty:
-            ppi_mom = pd.to_numeric(
-                ppi_df.sort_values("date")["mom_pct"], errors="coerce"
-            ).dropna()
-            if len(ppi_mom) >= 2:
-                # PPI energy pass-through to CPI energy ~ 0.50
-                latest_ppi_mom = float(ppi_mom.iloc[-1])
-                # Blend with CPI energy trend
-                energy_df = cpi_data.get("energy")
-                if energy_df is not None and not energy_df.empty:
-                    cpi_energy_mom = pd.to_numeric(
-                        energy_df.sort_values("date")["mom_pct"], errors="coerce"
-                    ).dropna()
-                    if len(cpi_energy_mom) >= 3:
-                        cpi_trend = float(cpi_energy_mom.tail(3).mean())
-                        # Blend: 40% PPI signal, 60% CPI trend
-                        blended = 0.4 * (latest_ppi_mom * 0.50) + 0.6 * cpi_trend
-                        return round(blended, 3)
+        self._energy_method = "CPI能源历史趋势（无实时油价数据）"
 
-        # Fallback: pure CPI energy trend
+        # 优先使用实时汽油价格数据
+        gas_df = fred_data.get("retail_gasoline")
+        if gas_df is not None and not gas_df.empty:
+            gas_sorted = gas_df.sort_values("date")
+            gas_values = pd.to_numeric(gas_sorted["value"], errors="coerce").dropna()
+
+            if len(gas_values) >= 4:
+                # 当月均价 vs 上月均价
+                # 取最近的数据点作为当月，再往前的作为上月
+                current_month_avg = float(gas_values.tail(2).mean())  # 最近2周
+                prior_month_avg = float(gas_values.iloc[-4:-2].mean())  # 前2周
+
+                if prior_month_avg > 0:
+                    gas_mom_pct = ((current_month_avg / prior_month_avg) - 1) * 100
+
+                    # 汽油占CPI能源约50%，非汽油能源（电力等）假设MoM ~0%
+                    # CPI能源MoM ≈ 汽油MoM × 0.50（汽油在能源中的权重）
+                    # 再加电力/天然气的小幅变动
+                    energy_mom = gas_mom_pct * 0.50
+
+                    self._energy_method = (
+                        f"实时汽油价格: ${current_month_avg:.2f}/gal vs "
+                        f"${prior_month_avg:.2f}/gal ({gas_mom_pct:+.1f}%), "
+                        f"传导至CPI能源"
+                    )
+                    return round(energy_mom, 3)
+
+        # 次选：用WTI原油价格推算
+        oil_df = fred_data.get("wti_crude")
+        if oil_df is not None and not oil_df.empty:
+            oil_sorted = oil_df.sort_values("date")
+            oil_values = pd.to_numeric(oil_sorted["value"], errors="coerce").dropna()
+
+            if len(oil_values) >= 4:
+                current_oil = float(oil_values.tail(2).mean())
+                prior_oil = float(oil_values.iloc[-4:-2].mean())
+
+                if prior_oil > 0:
+                    oil_mom_pct = ((current_oil / prior_oil) - 1) * 100
+                    # 原油→零售汽油传导系数约0.50（原油占零售价~50%）
+                    # 汽油→CPI能源传导系数约0.50（汽油占能源~50%）
+                    # 总传导: 0.50 × 0.50 = 0.25
+                    energy_mom = oil_mom_pct * 0.25
+
+                    self._energy_method = (
+                        f"WTI原油: ${current_oil:.1f}/bbl vs "
+                        f"${prior_oil:.1f}/bbl ({oil_mom_pct:+.1f}%), "
+                        f"传导系数0.25"
+                    )
+                    return round(energy_mom, 3)
+
+        # 兜底：CPI能源历史趋势
         energy_df = cpi_data.get("energy")
         if energy_df is not None and not energy_df.empty:
             mom = pd.to_numeric(
@@ -304,7 +338,7 @@ class CPIForecaster:
             ).dropna()
             if len(mom) >= 3:
                 return round(float(mom.tail(3).mean()), 3)
-        return 0.0  # default: flat
+        return 0.0
 
     def _forecast_food(self, cpi_data: dict) -> float:
         """Forecast food MoM from recent trend.

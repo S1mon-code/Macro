@@ -87,6 +87,9 @@ fred:
     hy_spread: "BAMLH0A0HYM2"
     ig_spread: "BAMLC0A0CM"
     treasury_3m: "DGS3MO"
+    # 油价/汽油（CPI预测用）
+    wti_crude: "DCOILWTICO"
+    retail_gasoline: "GASREGW"
     # 领先指标
     lei: "USSLIND"
   labels:
@@ -128,6 +131,8 @@ fred:
     hy_spread: "高收益信用利差"
     ig_spread: "投资级信用利差"
     treasury_3m: "3月期国债收益率"
+    wti_crude: "WTI 原油价格"
+    retail_gasoline: "零售汽油价格"
     lei: "会议局 LEI"
   # 日频数据需要转月均
   daily_series:
@@ -137,9 +142,11 @@ fred:
     - treasury_3m
     - hy_spread
     - ig_spread
+    - wti_crude
   # 周频数据转月均
   weekly_series:
     - initial_claims
+    - retail_gasoline
   # 季度数据
   quarterly_series:
     - gdp
