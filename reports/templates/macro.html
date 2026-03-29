@@ -282,9 +282,10 @@
         <div class="sidebar-title">目录导航</div>
         <a href="#overview" class="section-link">全球宏观概览</a>
         {% for section in sections %}
-        <a href="#section-{{ loop.index }}" class="section-link">{{ section.title }}</a>
+        {% set sec_idx = loop.index %}
+        <a href="#section-{{ sec_idx }}" class="section-link">{{ section.title }}</a>
         {% for sub in section.subsections %}
-        <a href="#section-{{ loop.parent.loop.index }}-{{ loop.index }}" class="sub-link">{{ sub.title }}</a>
+        <a href="#section-{{ sec_idx }}-{{ loop.index }}" class="sub-link">{{ sub.title }}</a>
         {% endfor %}
         {% endfor %}
     </nav>
@@ -364,10 +365,11 @@
 
             <!-- Dynamic Sections -->
             {% for section in sections %}
-            <div id="section-{{ loop.index }}" class="section">
+            {% set sec_idx2 = loop.index %}
+            <div id="section-{{ sec_idx2 }}" class="section">
                 <h2>{{ section.title }}</h2>
                 {% for sub in section.subsections %}
-                <div id="section-{{ loop.parent.loop.index }}-{{ loop.index }}" class="subsection">
+                <div id="section-{{ sec_idx2 }}-{{ loop.index }}" class="subsection">
                     <h3>{{ sub.title }}</h3>
                     {% if sub.table %}
                     <div class="data-table-wrapper">
