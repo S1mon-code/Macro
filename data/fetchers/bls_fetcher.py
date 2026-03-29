@@ -21,6 +21,15 @@ class BLSFetcher:
         self.labels = cpi_config["labels"]
         self.start_year = cpi_config.get("start_year", 2020)
 
+    @staticmethod
+    def _safe_float(val) -> float | None:
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return None
+
     def fetch_series(
         self,
         series_ids: list[str],
@@ -57,6 +66,11 @@ class BLSFetcher:
                 if item["period"].startswith("M") and item["period"] != "M13":
                     month = int(item["period"][1:])
                     year = int(item["year"])
+                    # BLS returns '-' for unavailable values
+                    try:
+                        value = float(item["value"])
+                    except (ValueError, TypeError):
+                        continue
                     calcs = item.get("calculations", {})
                     pct = calcs.get("pct_changes", {})
                     rows.append({
@@ -64,9 +78,9 @@ class BLSFetcher:
                         "date": datetime(year, month, 1),
                         "year": year,
                         "month": month,
-                        "value": float(item["value"]),
-                        "yoy_pct": float(pct["12"]) if "12" in pct else None,
-                        "mom_pct": float(pct["1"]) if "1" in pct else None,
+                        "value": value,
+                        "yoy_pct": self._safe_float(pct.get("12")),
+                        "mom_pct": self._safe_float(pct.get("1")),
                     })
 
         df = pd.DataFrame(rows)
