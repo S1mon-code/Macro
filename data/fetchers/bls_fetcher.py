@@ -86,7 +86,24 @@ class BLSFetcher:
         df = pd.DataFrame(rows)
         if not df.empty:
             df = df.sort_values("date").reset_index(drop=True)
+            # 如果 API 没返回 calculations（无 API Key），自行计算
+            df = self._compute_changes(df)
         return df
+
+    @staticmethod
+    def _compute_changes(df: pd.DataFrame) -> pd.DataFrame:
+        """对每个 series 自行计算同比/环比百分比（当 API 未返回时）"""
+        results = []
+        for sid, group in df.groupby("series_id"):
+            group = group.sort_values("date").copy()
+            # 环比: 相对上月变化百分比
+            if group["mom_pct"].isna().all():
+                group["mom_pct"] = group["value"].pct_change() * 100
+            # 同比: 相对去年同月变化百分比
+            if group["yoy_pct"].isna().all():
+                group["yoy_pct"] = group["value"].pct_change(periods=12) * 100
+            results.append(group)
+        return pd.concat(results, ignore_index=True)
 
     def fetch_cpi_all(
         self,

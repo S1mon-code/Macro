@@ -1,5 +1,5 @@
 bls:
-  api_key: ""  # 从 https://data.bls.gov/registrationEngine/ 免费注册获取
+  api_key: "f52bb1c786ac44cc8e92709221d43abf"
   base_url: "https://api.bls.gov/publicAPI/v2/timeseries/data/"
 
 cpi:
