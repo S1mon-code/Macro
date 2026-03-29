@@ -164,8 +164,9 @@ class CPIForecaster:
         })
 
         # ── Headline MoM forecast ──
-        # headline_mom% = sum(component_mom% * component_weight%) / 100
-        headline_mom = sum(c["mom_forecast"] * c["weight"] for c in components) / 100.0
+        # Normalize by actual total weight of forecasted components (may be < 100)
+        total_weight = sum(c["weight"] for c in components)
+        headline_mom = sum(c["mom_forecast"] * c["weight"] for c in components) / total_weight
         result["headline_mom_forecast"] = round(headline_mom, 3)
 
         # ── Core MoM (exclude food and energy) ──

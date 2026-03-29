@@ -16,7 +16,8 @@ class BLSFetcher:
         cpi_config = config["cpi"]
 
         self.base_url = bls_config["base_url"]
-        self.api_key = bls_config.get("api_key", "")
+        import os
+        self.api_key = bls_config.get("api_key", "") or os.environ.get("BLS_API_KEY", "")
         self.series = cpi_config["series"]
         self.labels = cpi_config["labels"]
         self.start_year = cpi_config.get("start_year", 2020)

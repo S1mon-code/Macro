@@ -1,22 +1,15 @@
 import pandas as pd
 
+from analysis.utils import safe_latest, safe_trend
+
 
 class InflationAnalyzer:
     """通胀多维度拆解分析"""
 
     def _safe_latest(self, df: pd.DataFrame | None, col: str) -> float | None:
         """Safely extract the latest value for a given column from a DataFrame."""
-        if df is None or df.empty:
-            return None
-        if col not in df.columns:
-            return None
-        valid = df.dropna(subset=[col])
-        if valid.empty:
-            return None
-        try:
-            return round(float(valid.iloc[-1][col]), 4)
-        except (ValueError, TypeError):
-            return None
+        val = safe_latest(df, col)
+        return round(val, 4) if val is not None else None
 
     def _safe_trend_3m(self, df: pd.DataFrame | None, col: str) -> float | None:
         """Compute the average of the last 3 available values for a column."""

@@ -674,15 +674,16 @@
     <!-- Side Navigation -->
     <nav class="sidebar">
         <div class="sidebar-title">目录导航</div>
+        <a href="#exec-summary" class="section-link">执行摘要</a>
+        {% if asset_scores %}
+        <a href="#forecast-dashboard" class="section-link">资产方向预测</a>
+        {% endif %}
         <a href="#overview" class="section-link">全球宏观概览</a>
         {% if cycle_signals %}
         <a href="#cycle-dashboard" class="section-link">经济周期仪表盘</a>
         {% endif %}
         {% if recession_data %}
         <a href="#recession-prob" class="sub-link">衰退概率</a>
-        {% endif %}
-        {% if asset_scores %}
-        <a href="#forecast-dashboard" class="section-link">资产方向预测</a>
         {% endif %}
         {% if regime_us %}
         <a href="#macro-regime" class="sub-link">宏观象限</a>
@@ -712,6 +713,92 @@
                 <div class="subtitle">{{ report_date }}</div>
                 <div class="date">生成时间: {{ generated_at }} | Macro 宏观数据分析系统</div>
             </div>
+
+            {% if data_freshness %}
+            <div style="text-align:center;font-size:11px;color:#555;margin-bottom:20px">
+                数据截至: CPI {{ data_freshness.cpi }} | FRED {{ data_freshness.fred }} | 中国 {{ data_freshness.china }}
+            </div>
+            {% endif %}
+
+            <!-- Section: Executive Summary -->
+            <div id="exec-summary" class="section">
+                <h2>执行摘要</h2>
+                <div style="background:#111;border:1px solid #1a1a2e;border-radius:12px;padding:24px;margin-bottom:20px">
+
+                    <!-- Regime boxes side by side -->
+                    {% if regime_us %}
+                    <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+                        <div style="flex:1;min-width:200px;text-align:center;padding:12px;background:#0d0d20;border-radius:8px">
+                            <div style="font-size:11px;color:#888">美国宏观象限</div>
+                            <div style="font-size:20px;font-weight:700;color:{{ '#16c79a' if regime_us.color == 'green' else ('#e94560' if regime_us.color == 'red' else ('#f5a623' if regime_us.color == 'orange' else '#50c4ed')) }}">{{ regime_us.quadrant_cn }}</div>
+                        </div>
+                        {% if regime_china %}
+                        <div style="flex:1;min-width:200px;text-align:center;padding:12px;background:#0d0d20;border-radius:8px">
+                            <div style="font-size:11px;color:#888">中国宏观象限</div>
+                            <div style="font-size:20px;font-weight:700;color:{{ '#16c79a' if regime_china.color == 'green' else ('#e94560' if regime_china.color == 'red' else ('#f5a623' if regime_china.color == 'orange' else '#50c4ed')) }}">{{ regime_china.quadrant_cn }}</div>
+                        </div>
+                        {% endif %}
+                        {% if recession_data and recession_data.probability is defined %}
+                        <div style="flex:1;min-width:200px;text-align:center;padding:12px;background:#0d0d20;border-radius:8px">
+                            <div style="font-size:11px;color:#888">衰退概率</div>
+                            <div style="font-size:20px;font-weight:700;color:{{ '#16c79a' if recession_data.probability < 25 else ('#f5a623' if recession_data.probability < 50 else '#e94560') }}">{{ "%.1f"|format(recession_data.probability) }}%</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Top asset calls -->
+                    {% if asset_scores %}
+                    <div style="font-size:13px;color:#888;margin-bottom:8px">核心资产观点</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        {% for key, asset in asset_scores.items() %}
+                        <div style="background:#0d0d20;border-radius:6px;padding:8px 14px;display:flex;align-items:center;gap:8px">
+                            <span style="font-size:12px;color:#ccc">{{ asset.name }}</span>
+                            <span style="font-size:14px;font-weight:700;color:{{ '#16c79a' if asset.score > 0.2 else ('#e94560' if asset.score < -0.2 else '#f5a623') }}">{{ asset.signal }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Forward narrative -->
+                    {% if macro_forecasts and macro_forecasts.narrative %}
+                    <div style="margin-top:16px;font-size:13px;color:#aaa;line-height:1.7;border-top:1px solid #1a1a2e;padding-top:12px">
+                        {{ macro_forecasts.narrative }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Asset Forecast Dashboard (moved before overview) -->
+            {% if asset_scores %}
+            <div id="forecast-dashboard" class="section">
+                <h2>资产方向预测</h2>
+                <div class="forecast-grid">
+                    {% for key, asset in asset_scores.items() %}
+                    <div class="forecast-card" onclick="showFactors('{{ key }}')">
+                        <div class="fc-header">
+                            <span class="fc-name">{{ asset.name }}</span>
+                            <span class="fc-score {{ 'bullish' if asset.score > 0.2 else ('bearish' if asset.score < -0.2 else 'neutral') }}">
+                                {{ "%+.2f"|format(asset.score) }}
+                            </span>
+                        </div>
+                        <div class="fc-signal" style="color: {{ '#16c79a' if asset.color == 'green' else ('#e94560' if asset.color == 'red' else '#f5a623') }}">
+                            {{ asset.signal }}
+                        </div>
+                        <div class="fc-bar">
+                            <div class="fc-bar-center"></div>
+                            {% set bar_pct = ((asset.score + 1) / 2 * 100) %}
+                            {% if asset.score >= 0 %}
+                            <div class="fc-bar-fill" style="left:50%; width:{{ (bar_pct - 50)|abs }}%; background:#16c79a;"></div>
+                            {% else %}
+                            <div class="fc-bar-fill" style="left:{{ bar_pct }}%; width:{{ (50 - bar_pct)|abs }}%; background:#e94560;"></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Section: Overview -->
             <div id="overview" class="section">
@@ -861,37 +948,6 @@
                         <div class="regime-assets">{{ regime_china.assets }}</div>
                     </div>
                     {% endif %}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Asset Forecast Dashboard -->
-            {% if asset_scores %}
-            <div id="forecast-dashboard" class="section">
-                <h2>资产方向预测</h2>
-                <div class="forecast-grid">
-                    {% for key, asset in asset_scores.items() %}
-                    <div class="forecast-card" onclick="showFactors('{{ key }}')">
-                        <div class="fc-header">
-                            <span class="fc-name">{{ asset.name }}</span>
-                            <span class="fc-score {{ 'bullish' if asset.score > 0.2 else ('bearish' if asset.score < -0.2 else 'neutral') }}">
-                                {{ "%+.2f"|format(asset.score) }}
-                            </span>
-                        </div>
-                        <div class="fc-signal" style="color: {{ '#16c79a' if asset.color == 'green' else ('#e94560' if asset.color == 'red' else '#f5a623') }}">
-                            {{ asset.signal }}
-                        </div>
-                        <div class="fc-bar">
-                            <div class="fc-bar-center"></div>
-                            {% set bar_pct = ((asset.score + 1) / 2 * 100) %}
-                            {% if asset.score >= 0 %}
-                            <div class="fc-bar-fill" style="left:50%; width:{{ (bar_pct - 50)|abs }}%; background:#16c79a;"></div>
-                            {% else %}
-                            <div class="fc-bar-fill" style="left:{{ bar_pct }}%; width:{{ (50 - bar_pct)|abs }}%; background:#e94560;"></div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
                 </div>
             </div>
             {% endif %}

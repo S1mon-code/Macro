@@ -165,6 +165,8 @@ class MacroForecastMatrix:
             "china_forecasts": china_forecasts,
             "forward_regime_us": forward_regime_us,
             "forward_regime_china": forward_regime_china,
+            "_forward_us_data": forward_us_data,
+            "_forward_cn_data": forward_china_data,
             "narrative": narrative,
         }
 

@@ -1,5 +1,5 @@
 bls:
-  api_key: "f52bb1c786ac44cc8e92709221d43abf"
+  api_key: ""  # Set BLS_API_KEY environment variable
   base_url: "https://api.bls.gov/publicAPI/v2/timeseries/data/"
 
 cpi:
@@ -42,7 +42,7 @@ cpi:
   start_year: 2016
 
 fred:
-  api_key: "b4eef119095d53196fccfc9c2a1598b1"
+  api_key: ""  # Set FRED_API_KEY environment variable
   base_url: "https://api.stlouisfed.org/fred/series/observations"
   start_year: 2016
   series:

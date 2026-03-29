@@ -17,7 +17,8 @@ class FREDFetcher:
 
         fred_config = config["fred"]
 
-        self.api_key = fred_config["api_key"]
+        import os
+        self.api_key = fred_config.get("api_key", "") or os.environ.get("FRED_API_KEY", "")
         self.base_url = fred_config["base_url"]
         self.series = fred_config["series"]
         self.labels = fred_config["labels"]

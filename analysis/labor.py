@@ -1,23 +1,15 @@
 import pandas as pd
 import numpy as np
 
+from analysis.utils import safe_latest
+
 
 class LaborDashboard:
     """就业市场深度分析仪表盘"""
 
     def _safe_latest(self, df: pd.DataFrame | None, col: str) -> float | None:
         """Safely extract the latest value for a given column."""
-        if df is None or df.empty:
-            return None
-        if col not in df.columns:
-            return None
-        valid = df.dropna(subset=[col])
-        if valid.empty:
-            return None
-        try:
-            return float(valid.iloc[-1][col])
-        except (ValueError, TypeError):
-            return None
+        return safe_latest(df, col)
 
     def _safe_series(self, df: pd.DataFrame | None, col: str) -> pd.Series | None:
         """Return a clean Series for the given column, sorted by date."""

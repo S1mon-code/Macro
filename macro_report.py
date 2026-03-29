@@ -8,6 +8,9 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv()  # 加载 .env 文件中的 API keys
+
 import plotly.io as pio
 from jinja2 import Environment, FileSystemLoader
 
@@ -552,13 +555,6 @@ def generate_macro_report(use_cache: bool = False):
                  "credit_pulse_series", y_col="value", last_n=36,
                  title="中国信贷脉冲 (12月滚动贷款同比变化 %)"))}
         )
-    # M1 vs M2 增速 (keep existing)
-    cn_credit_charts.append(
-        {"title": "M1 vs M2 增速",
-         "html": _chart_html(cn_builder.multi_line(
-             [("m2", "yoy_pct", "M2 同比"), ("m1", "yoy_pct", "M1 同比")],
-             title="中国货币供应增速 (%)", y_label="同比 (%)"))}
-    )
     cn_subsections.append({"title": "信贷脉冲", "charts": cn_credit_charts})
 
     # 3.1 GDP
@@ -609,7 +605,7 @@ def generate_macro_report(use_cache: bool = False):
     ]
     cn_subsections.append({"title": "PMI", "charts": cn_pmi_charts})
 
-    # 3.4 货币供应 (kept but no longer duplicated since M1/M2 is in 信贷脉冲 section)
+    # 3.4 货币供应
     cn_money_charts = [
         {"title": "M2 & M1 同比增速",
          "html": _chart_html(cn_builder.multi_line(
@@ -718,6 +714,25 @@ def generate_macro_report(use_cache: bool = False):
     # 报告日期
     report_date = datetime.now().strftime("%Y年%m月")
 
+    # ── 数据新鲜度 ──
+    def _max_date(data_dict):
+        """从数据字典中提取所有 DataFrame 的最大日期"""
+        max_d = None
+        for df in data_dict.values():
+            if hasattr(df, 'empty') and not df.empty and "date" in df.columns:
+                d = df["date"].max()
+                if d is not None and (max_d is None or d > max_d):
+                    max_d = d
+        if max_d is not None and hasattr(max_d, "strftime"):
+            return max_d.strftime("%Y-%m-%d")
+        return str(max_d) if max_d is not None else "N/A"
+
+    data_freshness = {
+        "cpi": _max_date(cpi_data),
+        "fred": _max_date(fred_data),
+        "china": _max_date(china_data),
+    }
+
     env = Environment(loader=FileSystemLoader("reports/templates"))
     template = env.get_template("macro.html")
     html_content = template.render(
@@ -739,6 +754,7 @@ def generate_macro_report(use_cache: bool = False):
         cpi_forecast=cpi_forecast,
         macro_forecasts=macro_forecasts,
         forward_asset_scores=forward_asset_scores,
+        data_freshness=data_freshness,
     )
 
     html_path = output_dir / "macro_report.html"

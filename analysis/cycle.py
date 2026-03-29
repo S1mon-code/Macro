@@ -83,9 +83,10 @@ class CycleAssessor:
         if len(values) < 12:
             return None
 
-        current_3m_avg = values.tail(3).mean()
-        low_12m = values.tail(12).min()
-        gap = current_3m_avg - low_12m
+        rolling_3m = values.rolling(3).mean()
+        current_3m_avg = float(rolling_3m.iloc[-1])
+        low_12m_of_3m = float(rolling_3m.tail(12).min())
+        gap = current_3m_avg - low_12m_of_3m
 
         if gap >= 0.50:
             color = "red"
@@ -101,7 +102,7 @@ class CycleAssessor:
             "color": color,
             "description": (
                 f"3月均值({current_3m_avg:.3f}%) vs "
-                f"12月低点({low_12m:.3f}%), 差值 {gap:.3f}pp"
+                f"12月低点({low_12m_of_3m:.3f}%), 差值 {gap:.3f}pp"
             ),
         }
 
