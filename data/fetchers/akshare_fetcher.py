@@ -120,6 +120,12 @@ class AKShareFetcher:
             for col in ["value", "yoy_pct", "mom_pct"]:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
+            # 自动计算缺失的同比/环比
+            if "yoy_pct" in df.columns and df["yoy_pct"].isna().all() and "value" in df.columns:
+                # 用差值（适用于 PMI 等指数类指标）
+                df["yoy_pct"] = df["value"].diff(12)
+            if "mom_pct" in df.columns and df["mom_pct"].isna().all() and "value" in df.columns:
+                df["mom_pct"] = df["value"].diff(1)
             result[key] = df
 
         return result
