@@ -103,24 +103,67 @@ class FREDFetcher:
                 logger.error(f"Failed to fetch FRED series {name} ({series_id}): {e}")
                 continue
 
-        # 用原始数据计算精确失业率（FRED UNRATE 只有1位小数）
-        if "unemployed_count" in result and "labor_force" in result:
-            try:
-                ue = result["unemployed_count"].copy()
-                lf = result["labor_force"].copy()
-                merged = pd.merge(ue[["date", "value"]], lf[["date", "value"]],
-                                  on="date", suffixes=("_ue", "_lf"))
-                merged["value"] = (merged["value_ue"] / merged["value_lf"]) * 100
-                merged["series_id"] = "UNRATE_PRECISE"
-                merged = merged[["series_id", "date", "value"]].copy()
-                merged = self._compute_changes(merged, rate=True)
-                for col in merged.columns:
-                    merged[col] = merged[col].tolist()
-                result["unemployment"] = merged
-            except Exception as e:
-                logger.warning(f"Failed to compute precise unemployment rate: {e}")
+        # ── 精确计算：用原始数据替代四舍五入的官方数字 ──
+        result = self._compute_precise_rates(result)
 
         return result
+
+    def _compute_precise_rates(self, result: dict) -> dict:
+        """用原始组件数据计算更精确的衍生指标"""
+
+        # 1. 精确失业率: UNEMPLOY / CLF16OV (官方 UNRATE 只有1位小数)
+        self._precise_ratio(result, "unemployment", "unemployed_count", "labor_force",
+                            "UNRATE_PRECISE", rate=True)
+
+        # 2. 精确劳动参与率: CLF16OV / CNP16OV (官方 CIVPART 只有1位小数)
+        self._precise_ratio(result, "labor_participation", "labor_force", "civilian_population",
+                            "CIVPART_PRECISE", rate=True)
+
+        # 3. 精确 CPI YoY: 从 BLS 的3位小数指数值自行计算 (已在 cpi_data 中处理)
+        # 4. 精确 PPI/PCE/Core PCE YoY: 从3位小数指数值自行计算
+        for name in ["ppi", "pce", "core_pce"]:
+            self._precise_yoy_from_index(result, name)
+
+        return result
+
+    def _precise_ratio(self, result: dict, target: str, numerator: str, denominator: str,
+                       series_id: str, rate: bool = False):
+        """用分子/分母计算精确比率替代官方四舍五入值"""
+        if numerator not in result or denominator not in result:
+            return
+        try:
+            num_df = result[numerator].copy()
+            den_df = result[denominator].copy()
+            merged = pd.merge(num_df[["date", "value"]], den_df[["date", "value"]],
+                              on="date", suffixes=("_num", "_den"))
+            merged["value"] = (merged["value_num"] / merged["value_den"]) * 100
+            merged["series_id"] = series_id
+            merged = merged[["series_id", "date", "value"]].copy()
+            merged = self._compute_changes(merged, rate=rate)
+            for col in merged.columns:
+                merged[col] = merged[col].tolist()
+            result[target] = merged
+        except Exception as e:
+            logger.warning(f"Failed to compute precise {target}: {e}")
+
+    def _precise_yoy_from_index(self, result: dict, name: str):
+        """从指数值（3位小数）自行计算精确 YoY%，替代官方1位小数"""
+        if name not in result:
+            return
+        try:
+            df = result[name].copy()
+            if "value" not in df.columns or len(df) < 13:
+                return
+            df = df.sort_values("date").reset_index(drop=True)
+            # 从指数值重新计算 YoY: (current / 12-months-ago - 1) * 100
+            df["yoy_pct"] = ((df["value"] / df["value"].shift(12)) - 1) * 100
+            # MoM 也重新算
+            df["mom_pct"] = ((df["value"] / df["value"].shift(1)) - 1) * 100
+            for col in df.columns:
+                df[col] = df[col].tolist()
+            result[name] = df
+        except Exception as e:
+            logger.warning(f"Failed to compute precise YoY for {name}: {e}")
 
     @staticmethod
     def _to_monthly(df: pd.DataFrame) -> pd.DataFrame:
