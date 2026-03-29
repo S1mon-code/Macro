@@ -31,8 +31,8 @@ class CPIChartBuilder:
                 continue
             df_valid = df.dropna(subset=["yoy_pct"])
             fig.add_trace(go.Scatter(
-                x=df_valid["date"],
-                y=df_valid["yoy_pct"],
+                x=df_valid["date"].tolist(),
+                y=df_valid["yoy_pct"].tolist(),
                 mode="lines+markers",
                 name=self._label(name),
                 line=dict(color=self.COLORS[i % len(self.COLORS)], width=2),
@@ -59,8 +59,8 @@ class CPIChartBuilder:
         colors = ["#e94560" if v > 0 else "#16c79a" for v in df_valid["mom_pct"]]
 
         fig = go.Figure(go.Bar(
-            x=df_valid["date"],
-            y=df_valid["mom_pct"],
+            x=df_valid["date"].tolist(),
+            y=df_valid["mom_pct"].tolist(),
             marker_color=colors,
             text=[f"{v:.2f}%" for v in df_valid["mom_pct"]],
             textposition="outside",
@@ -75,7 +75,7 @@ class CPIChartBuilder:
         return fig
 
     def components_latest_yoy(self, components: list[str]) -> go.Figure:
-        """各分项最新同比对比横��柱状图"""
+        """各分项最新同比对比横向柱状图"""
         names = []
         values = []
         for name in components:
@@ -87,7 +87,7 @@ class CPIChartBuilder:
                 continue
             latest = df_valid.iloc[-1]
             names.append(self._label(name))
-            values.append(latest["yoy_pct"])
+            values.append(float(latest["yoy_pct"]))
 
         colors = ["#e94560" if v > 0 else "#16c79a" for v in values]
 
@@ -125,27 +125,27 @@ class CPIChartBuilder:
         y = recent["yoy_pct"].values
 
         coeffs = np.polyfit(x, y, deg=1)
-        slope, intercept = coeffs[0], coeffs[1]
+        slope, intercept = float(coeffs[0]), float(coeffs[1])
 
         future_x = np.arange(len(recent), len(recent) + months_ahead)
-        future_y = slope * future_x + intercept
+        future_y = (slope * future_x + intercept).tolist()
         last_date = recent["date"].iloc[-1]
-        future_dates = pd.date_range(last_date, periods=months_ahead + 1, freq="MS")[1:]
+        future_dates = pd.date_range(last_date, periods=months_ahead + 1, freq="MS")[1:].tolist()
 
         fig = go.Figure()
 
         fig.add_trace(go.Scatter(
-            x=df_valid["date"],
-            y=df_valid["yoy_pct"],
+            x=df_valid["date"].tolist(),
+            y=df_valid["yoy_pct"].tolist(),
             mode="lines+markers",
             name=f"{self._label(component)} 实际值",
             line=dict(color="#0f3460", width=2),
             marker=dict(size=4),
         ))
 
-        fit_y = slope * x + intercept
+        fit_y = (slope * x + intercept).tolist()
         fig.add_trace(go.Scatter(
-            x=recent["date"],
+            x=recent["date"].tolist(),
             y=fit_y,
             mode="lines",
             name="趋势拟合",
@@ -164,7 +164,7 @@ class CPIChartBuilder:
         fig.update_layout(
             title=f"{self._label(component)} 同比趋势与预测 (%)",
             xaxis_title="日期",
-            yaxis_title="同��� (%)",
+            yaxis_title="同比 (%)",
             template=self.CHART_TEMPLATE,
             hovermode="x unified",
             annotations=[dict(
@@ -187,8 +187,8 @@ class CPIChartBuilder:
             if df is None or df.empty:
                 continue
             fig.add_trace(go.Scatter(
-                x=df["date"],
-                y=df["value"],
+                x=df["date"].tolist(),
+                y=df["value"].tolist(),
                 mode="lines",
                 name=self._label(name),
                 line=dict(color=self.COLORS[i % len(self.COLORS)], width=2),
