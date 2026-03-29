@@ -90,6 +90,7 @@ fred:
     # 油价/汽油（CPI预测用）
     wti_crude: "DCOILWTICO"
     retail_gasoline: "GASREGW"
+    dxy: "DTWEXBGS"
     # 领先指标
     lei: "USSLIND"
   labels:
@@ -133,6 +134,7 @@ fred:
     treasury_3m: "3月期国债收益率"
     wti_crude: "WTI 原油价格"
     retail_gasoline: "零售汽油价格"
+    dxy: "美元指数 (DXY)"
     lei: "会议局 LEI"
   # 日频数据需要转月均
   daily_series:
@@ -143,6 +145,7 @@ fred:
     - hy_spread
     - ig_spread
     - wti_crude
+    - dxy
   # 周频数据转月均
   weekly_series:
     - initial_claims
