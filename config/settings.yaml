@@ -71,6 +71,24 @@ fred:
     trade_balance: "BOPGSTB"
     m2_money_supply: "M2SL"
     capacity_utilization: "TCU"
+    # 通胀拆解
+    cpi_all_urban: "CPIAUCSL"
+    core_cpi_fred: "CPILFESL"
+    sticky_cpi: "CORESTICKM159SFRBATL"
+    flexible_cpi: "FLEXCPIM159SFRBATL"
+    trimmed_mean_pce: "PCETRIM12M159SFRBDAL"
+    median_cpi: "MEDCPIM158SFRBCLE"
+    # 就业深度
+    jolts_openings: "JTSJOL"
+    jolts_quits: "JTSQUR"
+    u6_rate: "U6RATE"
+    prime_age_lfpr: "LNS11300060"
+    # 金融条件 & 信用
+    hy_spread: "BAMLH0A0HYM2"
+    ig_spread: "BAMLC0A0CM"
+    treasury_3m: "DGS3MO"
+    # 领先指标
+    lei: "USSLIND"
   labels:
     gdp: "实际 GDP"
     ppi: "PPI 生产者价格指数"
@@ -97,11 +115,28 @@ fred:
     trade_balance: "贸易差额"
     m2_money_supply: "M2 货币供应量"
     capacity_utilization: "产能利用率"
+    cpi_all_urban: "CPI-U 指数"
+    core_cpi_fred: "核心 CPI 指数"
+    sticky_cpi: "粘性 CPI"
+    flexible_cpi: "弹性 CPI"
+    trimmed_mean_pce: "截尾均值 PCE"
+    median_cpi: "中位 CPI"
+    jolts_openings: "JOLTS 职位空缺"
+    jolts_quits: "辞职率"
+    u6_rate: "U-6 广义失业率"
+    prime_age_lfpr: "25-54岁劳动参与率"
+    hy_spread: "高收益信用利差"
+    ig_spread: "投资级信用利差"
+    treasury_3m: "3月期国债收益率"
+    lei: "会议局 LEI"
   # 日频数据需要转月均
   daily_series:
     - treasury_10y
     - treasury_2y
     - yield_spread
+    - treasury_3m
+    - hy_spread
+    - ig_spread
   # 周频数据转月均
   weekly_series:
     - initial_claims
@@ -118,6 +153,16 @@ fred:
     - labor_participation
     - consumer_sentiment
     - capacity_utilization
+    - sticky_cpi
+    - flexible_cpi
+    - trimmed_mean_pce
+    - median_cpi
+    - jolts_quits
+    - u6_rate
+    - prime_age_lfpr
+    - hy_spread
+    - ig_spread
+    - treasury_3m
 
 china:
   start_year: 2016
